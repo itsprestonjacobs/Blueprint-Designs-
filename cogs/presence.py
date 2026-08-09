@@ -1,8 +1,7 @@
 """Rotating bot presence.
 
 Cycles the activity shown under the bot's name -- Playing, Watching, Listening,
-Streaming, Competing, or a plain custom status -- on a timer, pulling live
-numbers from the stores so the text isn't static.
+Streaming, Competing, or a plain custom status -- on a timer.
 
 Everything is driven by `presence` in config.json, so adding a line to the
 rotation is a config edit.
@@ -20,8 +19,6 @@ from discord.ext import commands, tasks
 from core import ui
 from core.config import config
 from core.perms import require
-from core.store import orders as order_store
-from core.store import tickets as ticket_store
 
 log = logging.getLogger("blueprint.presence")
 
@@ -96,23 +93,10 @@ class Presence(commands.Cog):
         """Live values available as {placeholders} in status text."""
         guild = self.bot.get_guild(config.guild_id) if config.guild_id else None
 
-        tickets = await ticket_store.read()
-        open_tickets = sum(
-            1
-            for t in (tickets.get("tickets") or {}).values()
-            if t.get("status") == "open"
-        )
-
-        orders = await order_store.read()
-        order_rows = (orders.get("orders") or {}).values()
-
         return {
             "members": guild.member_count if guild else 0,
             "guild": guild.name if guild else "Blueprint",
-            "open_tickets": open_tickets,
-            "orders": len(order_rows),
-            "robux": sum(o.get("price", 0) for o in order_rows),
-            "designers": len(config.role_ids("designer")),
+            "channels": len(guild.channels) if guild else 0,
         }
 
     async def apply(self, entry: dict) -> str:

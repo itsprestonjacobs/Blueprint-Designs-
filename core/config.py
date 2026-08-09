@@ -83,12 +83,6 @@ class Config:
             return [int(raw)]
         return [int(r) for r in raw if r]
 
-    def ticket_categories(self) -> dict[str, dict[str, Any]]:
-        return self.get("tickets.categories", {}) or {}
-
-    def ticket_category(self, key: str) -> dict[str, Any] | None:
-        return self.ticket_categories().get(key)
-
     # -- validation -------------------------------------------------------
 
     def missing_keys(self) -> list[str]:
@@ -105,10 +99,6 @@ class Config:
         for tier in ("admin", "hr", "support", "designer"):
             if not self.role_ids(tier):
                 missing.append(f"roles.{tier}")
-
-        for key, cat in self.ticket_categories().items():
-            if not cat.get("category_id"):
-                missing.append(f"tickets.categories.{key}.category_id")
 
         return missing
 
