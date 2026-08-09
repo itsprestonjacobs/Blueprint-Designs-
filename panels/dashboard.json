@@ -1,0 +1,48 @@
+{
+  "title": "Dashboard",
+  "banner": "assets/blueprint.png",
+  "body": "**Blueprint Designs** builds custom work for Roblox and Discord. Liveries, uniforms, ELS, graphics, bots, sites.\n\nEverything you need is below. Head to the order channel to buy, or open a ticket if you're stuck.",
+  "footer": "Blueprint Designs",
+  "buttons": [
+    { "label": "Careers", "url": "config:links.careers", "emoji": "📋" },
+    { "label": "Support", "url": "config:links.support", "emoji": "🎫" },
+    { "label": "Roblox Group", "url": "config:links.roblox_group" }
+  ],
+  "select": {
+    "placeholder": "Rules, terms and policies",
+    "options": [
+      {
+        "label": "Terms of Service",
+        "value": "tos",
+        "emoji": "📜",
+        "description": "What you agree to when you order",
+        "title": "Terms of Service",
+        "content": "**Payment**\nPaid up front unless staff agree otherwise in writing. We use gamepasses. Never send Robux to anyone claiming to be staff in DMs.\n\n**Revisions**\nReasonable changes are free. Redesigning from scratch after approval is a new order.\n\n**Ownership**\nThe work is yours once it's paid for. We keep the right to show it in our portfolio unless you ask us not to.\n\n**Conduct**\nBe civil with the designers. Abuse gets your order cancelled without a refund."
+      },
+      {
+        "label": "Refunds",
+        "value": "refunds",
+        "emoji": "💸",
+        "description": "When you get your Robux back",
+        "title": "Refunds",
+        "content": "**You get a refund if**\nWork hasn't started yet, we can't deliver what was agreed, or what you got is clearly not what you asked for.\n\n**You don't if**\nThe work was delivered and approved, or you changed your mind after we started.\n\nOpen a ticket and say what happened. Include your order number."
+      },
+      {
+        "label": "Server Rules",
+        "value": "rules",
+        "emoji": "⚖️",
+        "description": "Keep it simple",
+        "title": "Server Rules",
+        "content": "**1.** Follow Discord's ToS and Community Guidelines.\n**2.** No harassment, slurs, or drama.\n**3.** No advertising or DM ads.\n**4.** Use channels for what they're for.\n**5.** No alt accounts to dodge punishments.\n\nStaff calls are final in the moment. Appeal in a ticket, not in chat."
+      },
+      {
+        "label": "How Ordering Works",
+        "value": "guide",
+        "emoji": "🧭",
+        "description": "Start to finish",
+        "title": "How Ordering Works",
+        "content": "**1.** Open a ticket from the order panel and pick your service.\n**2.** Fill in the form. Vague briefs get vague results.\n**3.** A designer claims it and quotes you.\n**4.** Pay via the gamepass we send.\n**5.** Get your work, ask for changes if needed.\n**6.** Leave a review. It actually helps us."
+      }
+    ]
+  }
+}

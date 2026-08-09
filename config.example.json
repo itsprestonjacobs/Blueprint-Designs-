@@ -1,0 +1,391 @@
+{
+  "guild_id": null,
+  "accent_color": "0x3B82F6",
+  "branding": {
+    "name": "Blueprint",
+    "footer": "Blueprint Utilities",
+    "banner_url": null,
+    "divider_url": null
+  },
+  "links": {
+    "roblox_group": null,
+    "support": null,
+    "careers": null,
+    "terms": null,
+    "pricing": null,
+    "ordering_tos": null,
+    "marketplace_tos": null,
+    "course_tos": null,
+    "course_server": null,
+    "dashboard": null,
+    "live_queue": null,
+    "portfolio": null
+  },
+  "roles": {
+    "admin": [],
+    "hr": [],
+    "support": [],
+    "designer": [],
+    "verified": null,
+    "autoroles": []
+  },
+  "channels": {
+    "ticket_transcripts": null,
+    "mod_log": null,
+    "order_log": null,
+    "review_channel": null,
+    "application_review": null,
+    "welcome": null,
+    "queue_board": null,
+    "status_board": null,
+    "suggestions": null,
+    "partnerships": null,
+    "loa_log": null,
+    "promotion_log": null,
+    "infraction_log": null,
+    "quality_control": null,
+    "activity_check": null,
+    "giveaways": null
+  },
+  "tickets": {
+    "max_open_per_user": 2,
+    "name_format": "{type}-{user}",
+    "transcript_dm": true,
+    "panel_banner": "assets/blueprint.png",
+    "categories": {
+      "claiming": {
+        "label": "Claiming Prize",
+        "emoji": "🎁",
+        "description": "Claim a giveaway prize or shop purchase",
+        "category_id": null,
+        "ping_roles": [],
+        "questions": [
+          "What are you claiming?",
+          "Link the giveaway or purchase"
+        ],
+        "banner": null
+      },
+      "support": {
+        "label": "Support Tickets",
+        "emoji": "🎫",
+        "description": "Questions, feedback, payment or refund help",
+        "category_id": null,
+        "ping_roles": [],
+        "questions": [
+          "What do you need help with?",
+          "Any relevant order or user IDs?"
+        ],
+        "banner": "assets/blueprint.png"
+      },
+      "applications": {
+        "label": "Applications",
+        "emoji": "📝",
+        "description": "Apply to join the team",
+        "category_id": null,
+        "ping_roles": [],
+        "questions": [
+          "Which position are you applying for?",
+          "What experience do you have?",
+          "Why should we pick you?"
+        ],
+        "banner": null
+      },
+      "discord": {
+        "label": "Discord Orders",
+        "emoji": "💬",
+        "description": "Server setup, embeds, bots and more",
+        "category_id": null,
+        "ping_roles": [],
+        "questions": [
+          "What exactly do you need built?",
+          "What is your budget?",
+          "What is your deadline?"
+        ],
+        "banner": null
+      },
+      "livery": {
+        "label": "Livery Orders",
+        "emoji": "🚓",
+        "description": "ER:LC vehicle liveries",
+        "category_id": null,
+        "ping_roles": [],
+        "questions": [
+          "Which vehicle(s) do you need?",
+          "Describe the design you want",
+          "What is your budget?"
+        ],
+        "banner": null
+      },
+      "uniform": {
+        "label": "Uniform Orders",
+        "emoji": "👕",
+        "description": "ER:LC uniforms",
+        "category_id": null,
+        "ping_roles": [],
+        "questions": [
+          "Which uniforms do you need?",
+          "Describe the design you want",
+          "What is your budget?"
+        ],
+        "banner": null
+      },
+      "graphics": {
+        "label": "Graphics",
+        "emoji": "🎨",
+        "description": "Banners, logos and assorted graphics",
+        "category_id": null,
+        "ping_roles": [],
+        "questions": [
+          "What graphic do you need?",
+          "Describe the style and text",
+          "What is your budget?"
+        ],
+        "banner": null
+      },
+      "bot": {
+        "label": "Bot Orders",
+        "emoji": "🤖",
+        "description": "Custom bot development",
+        "category_id": null,
+        "ping_roles": [],
+        "questions": [
+          "What should the bot do?",
+          "What is your budget?",
+          "What is your deadline?"
+        ],
+        "banner": null
+      },
+      "els": {
+        "label": "ELS Orders",
+        "emoji": "🚨",
+        "description": "ER:LC ELS lighting patterns",
+        "category_id": null,
+        "ping_roles": [],
+        "questions": [
+          "Which vehicle and pattern style?",
+          "What is your budget?"
+        ],
+        "banner": null
+      },
+      "photography": {
+        "label": "Photography",
+        "emoji": "📸",
+        "description": "Photography services",
+        "category_id": null,
+        "ping_roles": [],
+        "questions": [
+          "What kind of shots do you need?",
+          "What is your budget?"
+        ],
+        "banner": null
+      },
+      "google": {
+        "label": "Google Services Orders",
+        "emoji": "📄",
+        "description": "Docs, Sheets, Forms and more",
+        "category_id": null,
+        "ping_roles": [],
+        "questions": [
+          "Which Google service do you need?",
+          "Describe what it should contain"
+        ],
+        "banner": null
+      },
+      "hosting": {
+        "label": "Hosting",
+        "emoji": "🖥️",
+        "description": "Bot and service hosting",
+        "category_id": null,
+        "ping_roles": [],
+        "questions": [
+          "What needs hosting?",
+          "For how long?"
+        ],
+        "banner": null
+      },
+      "maps": {
+        "label": "Map Templates",
+        "emoji": "🗺️",
+        "description": "ER:LC map templates",
+        "category_id": null,
+        "ping_roles": [],
+        "questions": [
+          "Which map template do you need?",
+          "What is your budget?"
+        ],
+        "banner": null
+      },
+      "videography": {
+        "label": "Videography Orders",
+        "emoji": "🎬",
+        "description": "Video editing and production",
+        "category_id": null,
+        "ping_roles": [],
+        "questions": [
+          "What kind of video do you need?",
+          "How long should it be?",
+          "What is your budget?"
+        ],
+        "banner": null
+      },
+      "website": {
+        "label": "Website Development Orders",
+        "emoji": "🌐",
+        "description": "Websites and web apps",
+        "category_id": null,
+        "ping_roles": [],
+        "questions": [
+          "What kind of website do you need?",
+          "What pages/features are required?",
+          "What is your budget?"
+        ],
+        "banner": null
+      }
+    },
+    "panels": {
+      "orders": {
+        "title": "Order Here",
+        "body": "Check the status below, then pick what you need. One ticket per order.",
+        "banner": "assets/blueprint.png",
+        "placeholder": "Select an order type",
+        "show_status": true,
+        "show_pricing": true,
+        "categories": [
+          "discord",
+          "livery",
+          "uniform",
+          "graphics",
+          "bot",
+          "els",
+          "photography",
+          "google",
+          "hosting",
+          "maps",
+          "videography",
+          "website"
+        ]
+      },
+      "support": {
+        "title": "Support",
+        "body": "Need help with something? Pick the closest option below and we'll open a ticket.\n\nDon't open a second ticket to get seen faster, it does the opposite.",
+        "banner": "assets/blueprint.png",
+        "placeholder": "What do you need help with?",
+        "show_status": false,
+        "show_pricing": false,
+        "categories": [
+          "support",
+          "claiming"
+        ]
+      }
+    }
+  },
+  "order_status": {
+    "Discord Services": "OPENED",
+    "Custom Embeds": "OPENED",
+    "Assorted Graphics": "OPENED",
+    "ER:LC Liveries": "OPENED",
+    "ER:LC Uniforms": "OPENED",
+    "ER:LC ELS Patterns": "OPENED",
+    "ER:LC Map Templates": "OPENED",
+    "Photography Services": "OPENED",
+    "Google Services": "OPENED",
+    "Custom Bot Development": "CLOSED",
+    "Web Development": "OPENED"
+  },
+  "applications": {
+    "closed": false,
+    "positions": {
+      "designer": {
+        "label": "Designer",
+        "emoji": "🎨",
+        "description": "Liveries, uniforms, graphics, ELS",
+        "role_id": null,
+        "portfolio": true,
+        "questions": [
+          "How old are you, and what timezone are you in?",
+          "Which services can you design for?",
+          "How much can you realistically do in a week?",
+          "What software do you use?",
+          "Why do you want to work at Blueprint?"
+        ]
+      },
+      "support": {
+        "label": "Support",
+        "emoji": "🎧",
+        "description": "Handling tickets and customers",
+        "role_id": null,
+        "portfolio": false,
+        "questions": [
+          "How old are you, and what timezone are you in?",
+          "When are you usually active?",
+          "Have you done support anywhere before? Where?",
+          "A customer is angry their order is late. What do you say?",
+          "Why do you want to work at Blueprint?"
+        ]
+      },
+      "developer": {
+        "label": "Developer",
+        "emoji": "🤖",
+        "description": "Bots and websites",
+        "role_id": null,
+        "portfolio": true,
+        "questions": [
+          "How old are you, and what timezone are you in?",
+          "What languages and frameworks do you use?",
+          "What's the biggest thing you've built? Link it if you can.",
+          "How much can you realistically do in a week?",
+          "Why do you want to work at Blueprint?"
+        ]
+      }
+    },
+    "panel_channel": null,
+    "dm_flow": true,
+    "banner": "assets/blueprint.png"
+  },
+  "welcome": {
+    "enabled": false,
+    "message": "Welcome to **{guild}**, {mention}! You are member #{count}."
+  },
+  "suggestions": {
+    "enabled": true
+  },
+  "payouts": {
+    "commission_rate": 1.0
+  },
+  "presence": {
+    "enabled": true,
+    "interval": 45,
+    "status": "online",
+    "stream_url": "https://twitch.tv/blueprintdesigns",
+    "statuses": [
+      {
+        "type": "watching",
+        "text": "{members} members"
+      },
+      {
+        "type": "playing",
+        "text": "with blueprints"
+      },
+      {
+        "type": "listening",
+        "text": "your orders"
+      },
+      {
+        "type": "watching",
+        "text": "{open_tickets} open tickets"
+      },
+      {
+        "type": "streaming",
+        "text": "Blueprint Designs"
+      },
+      {
+        "type": "competing",
+        "text": "the design queue"
+      },
+      {
+        "type": "playing",
+        "text": "{orders} orders delivered"
+      }
+    ]
+  }
+}

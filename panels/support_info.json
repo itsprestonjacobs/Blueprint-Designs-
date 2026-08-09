@@ -1,0 +1,47 @@
+{
+  "title": "Support Info",
+  "banner": "assets/blueprint.png",
+  "body": "How we handle tickets. Read it before you take your first one.\n\nYou're the first thing a customer sees when something's gone wrong. Act like it.",
+  "footer": "Blueprint Designs",
+  "buttons": [
+    { "label": "Support", "url": "config:links.support", "emoji": "🎫" },
+    { "label": "Roblox Group", "url": "config:links.roblox_group" }
+  ],
+  "select": {
+    "placeholder": "Pick a topic",
+    "options": [
+      {
+        "label": "Handling Tickets",
+        "value": "handling",
+        "emoji": "🎫",
+        "description": "The standard flow",
+        "title": "Handling Tickets",
+        "content": "Claim it so nobody doubles up. Read the whole ticket before you reply.\n\nAnswer the actual question. Pasted boilerplate is obvious and makes people angrier.\n\nEscalate anything involving refunds outside policy, staff conduct, or partnerships. Close with a one-line summary of what got resolved."
+      },
+      {
+        "label": "Refunds",
+        "value": "refunds",
+        "emoji": "💸",
+        "description": "What you can approve",
+        "title": "Refunds",
+        "content": "You can approve a refund when work hasn't started.\n\nEscalate when the work was already delivered, when they're disputing quality, or when it's above your limit.\n\nCheck the order log before you promise anything. Never commit to a refund you can't actually authorise."
+      },
+      {
+        "label": "Escalating",
+        "value": "escalation",
+        "emoji": "⬆️",
+        "description": "When to hand it up",
+        "title": "Escalating",
+        "content": "Straight to HR: staff reports, threats or harassment, doxxing, chargebacks, partnership or bulk enquiries.\n\nPing HR in the ticket. Don't DM them, and don't argue with the customer while you wait.\n\nThere's no penalty for escalating something that turned out to be small. There is one for sitting on something that wasn't."
+      },
+      {
+        "label": "Tone",
+        "value": "tone",
+        "emoji": "💬",
+        "description": "How we talk to people",
+        "title": "Tone",
+        "content": "Warm, direct, short. Most people open a ticket because something is unclear or broken.\n\nOwn mistakes plainly and say what happens next. Don't guess at deadlines you don't control. Don't go silent, a holding message beats nothing.\n\nKeep internal disagreements out of the ticket entirely."
+      }
+    ]
+  }
+}

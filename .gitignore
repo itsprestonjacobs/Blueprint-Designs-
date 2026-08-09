@@ -1,0 +1,11 @@
+.env
+data/
+__pycache__/
+*.pyc
+*.log
+.venv/
+venv/
+transcripts/
+config.json
+!config.example.json
+bot.log
