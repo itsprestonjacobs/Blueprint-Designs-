@@ -24,7 +24,7 @@ from discord.ext import commands, tasks
 
 from core import ui
 from core.config import config
-from core.logs import send_log
+from core.logs import get_channel
 from core.security import can_global_ban
 from core.store import JSONStore
 
@@ -36,6 +36,16 @@ store = JSONStore("antiraid", {})
 def cfg(key: str, default):
     value = config.get(f"security.antiraid.{key}")
     return default if value is None else value
+
+
+async def alert(bot, view) -> None:
+    """Post to the raid channel, falling back to the general security log."""
+    for key in ("raid_alerts", "security_log"):
+        channel = await get_channel(bot, key)
+        if channel is not None:
+            files = view.files() if hasattr(view, "files") else []
+            await channel.send(view=view, files=files)
+            return
 
 
 def enabled() -> bool:
@@ -109,9 +119,8 @@ class AntiRaid(commands.Cog):
         except discord.HTTPException as exc:
             outcome = f"failed ({exc.status})"
 
-        await send_log(
+        await alert(
             self.bot,
-            "security_log",
             ui.panel(
                 "New Account Blocked",
                 "\n".join(
@@ -170,9 +179,8 @@ class AntiRaid(commands.Cog):
             data["lockdowns"] = data["lockdowns"][-200:]
 
         minutes = int(cfg("lockdown_minutes", 10))
-        await send_log(
+        await alert(
             self.bot,
-            "security_log",
             ui.panel(
                 "Raid Detected — Lockdown",
                 "\n".join(
@@ -204,9 +212,8 @@ class AntiRaid(commands.Cog):
         except (discord.Forbidden, discord.HTTPException):
             pass
 
-        await send_log(
+        await alert(
             self.bot,
-            "security_log",
             ui.panel(
                 "Lockdown Lifted",
                 f"**{guild.name}** is back to normal. Quarantined members still "

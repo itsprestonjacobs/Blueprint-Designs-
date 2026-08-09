@@ -15,7 +15,9 @@
   "channels": {
     "mod_log": null,
     "security_log": null,
-    "ticket_transcripts": null
+    "ticket_transcripts": null,
+    "application_review": null,
+    "raid_alerts": null
   },
   "presence": {
     "enabled": true,
@@ -120,12 +122,6 @@
         "category_id": null,
         "ping_roles": []
       },
-      "applications": {
-        "label": "Applications",
-        "description": "Apply to join the team",
-        "category_id": null,
-        "ping_roles": []
-      },
       "discord": {
         "label": "Discord Orders",
         "description": "Servers, embeds, setup",
@@ -223,10 +219,28 @@
         "placeholder": "Select a reason",
         "categories": [
           "support",
-          "claiming",
-          "applications"
+          "claiming"
         ]
       }
     }
+  },
+  "applications": {
+    "closed": false,
+    "role_id": null,
+    "categories": [
+      "Web Dev",
+      "Discord",
+      "Bot Dev",
+      "Livery",
+      "Uniform",
+      "Graphics",
+      "ELS",
+      "Photography",
+      "Videography",
+      "Map Templates",
+      "Google Services"
+    ],
+    "question": "Tell us about yourself, your experience, and why you want to join.",
+    "portfolio": true
   }
 }
