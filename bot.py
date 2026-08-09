@@ -44,10 +44,12 @@ class Blueprint(commands.Bot):
         intents.members = True          # welcome, autorole, member lookups
         intents.message_content = True  # transcripts and giveaway hosting
         super().__init__(command_prefix="bp!", intents=intents, help_command=None)
+        # on_ready fires again on every reconnect; syncing is once per process.
+        self._synced = False
 
     async def setup_hook(self) -> None:
+        # Commands sync from on_ready, once the guild list exists.
         await self.load_cogs()
-        await self.sync_commands()
 
     async def load_cogs(self) -> None:
         """Load every cog present.
@@ -69,27 +71,53 @@ class Blueprint(commands.Bot):
                 log.exception("failed to load %s", ext)
 
     async def sync_commands(self) -> None:
-        """Sync to the configured guild for instant availability.
+        """Sync commands to every guild the bot is in.
 
-        Guild syncs appear immediately; a global sync can take up to an hour, so
-        we only fall back to it when guild_id isn't set.
+        Guild syncs appear instantly, where a global sync can take an hour to
+        propagate. We also clear the global list: globally-registered commands
+        show up in *every* guild, so any left over from an earlier run would
+        haunt servers that were never meant to see them.
+
+        This runs from on_ready rather than setup_hook because the guild list
+        isn't populated until the bot has connected.
         """
         try:
-            if config.guild_id:
-                guild = discord.Object(id=config.guild_id)
+            existing_global = await self.tree.fetch_commands()
+            if existing_global:
+                # Overwrite the *remote* global list with nothing, via HTTP
+                # directly. tree.clear_commands(guild=None) would empty the
+                # local tree as well, leaving copy_global_to nothing to copy.
+                await self.http.bulk_upsert_global_commands(self.application_id, [])
+                log.info("cleared %d stale global command(s)", len(existing_global))
+        except discord.HTTPException:
+            log.exception("could not clear global commands")
+
+        for guild in self.guilds:
+            try:
                 self.tree.copy_global_to(guild=guild)
                 synced = await self.tree.sync(guild=guild)
-                log.info("synced %d commands to guild %s", len(synced), config.guild_id)
-            else:
-                synced = await self.tree.sync()
-                log.info("synced %d commands globally (set guild_id for instant sync)", len(synced))
+                log.info("synced %d commands to %s (%s)", len(synced), guild.name, guild.id)
+            except discord.HTTPException:
+                log.exception("command sync failed for %s", guild.id)
+
+    async def on_guild_join(self, guild: discord.Guild) -> None:
+        """A newly added server needs its own copy of the commands."""
+        try:
+            self.tree.copy_global_to(guild=guild)
+            synced = await self.tree.sync(guild=guild)
+            log.info("synced %d commands to new guild %s", len(synced), guild.name)
         except discord.HTTPException:
-            log.exception("command sync failed")
+            log.exception("command sync failed for new guild %s", guild.id)
 
     async def on_ready(self) -> None:
         log.info("online as %s (%s)", self.user, self.user.id if self.user else "?")
+
+        if not self._synced:
+            self._synced = True
+            await self.sync_commands()
+            report_config()
+
         # Presence is owned by cogs/presence.py, which rotates it on a timer.
-        report_config()
 
 
 def report_config() -> None:
