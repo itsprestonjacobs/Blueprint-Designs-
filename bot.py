@@ -1,4 +1,4 @@
-"""Blueprint Utilities -- entry point."""
+"""Sail's Customs bot -- entry point."""
 
 from __future__ import annotations
 

@@ -254,7 +254,7 @@ def panel(
     footer: str | None = None,
     timeout: float | None = None,
 ) -> BaseLayout:
-    """Standard Blueprint panel: banner, heading, body, divider, controls.
+    """Standard panel: banner, heading, body, divider, controls.
 
     This is the function nearly every cog should call rather than assembling a
     Container by hand.

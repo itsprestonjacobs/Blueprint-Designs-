@@ -2,8 +2,8 @@
   "guild_id": null,
   "accent_color": "0x3B82F6",
   "branding": {
-    "name": "Blueprint",
-    "footer": "Blueprint Designs",
+    "name": "Sail's Customs",
+    "footer": "Sail's Customs",
     "banner_url": null
   },
   "roles": {
@@ -14,7 +14,8 @@
   },
   "channels": {
     "mod_log": null,
-    "security_log": null
+    "security_log": null,
+    "ticket_transcripts": null
   },
   "presence": {
     "enabled": true,
@@ -31,11 +32,15 @@
       },
       {
         "type": "listening",
-        "text": "Blueprint Designs"
+        "text": "Sail’s Customs"
       },
       {
         "type": "competing",
         "text": "the design queue"
+      },
+      {
+        "type": "playing",
+        "text": "Sail’s Customs"
       }
     ]
   },
@@ -91,12 +96,137 @@
       }
     },
     "antiraid": {
-      "enabled": true,
+      "enabled": false,
       "join_limit": 6,
       "join_window": 10,
       "min_account_age_hours": 0,
       "young_account_action": "hold",
       "lockdown_minutes": 10
+    }
+  },
+  "tickets": {
+    "max_open_per_user": 2,
+    "name_format": "{type}-{user}",
+    "categories": {
+      "support": {
+        "label": "Support Tickets",
+        "description": "Questions, payments, refunds",
+        "category_id": null,
+        "ping_roles": []
+      },
+      "claiming": {
+        "label": "Claiming Prize",
+        "description": "Claim a giveaway or purchase",
+        "category_id": null,
+        "ping_roles": []
+      },
+      "applications": {
+        "label": "Applications",
+        "description": "Apply to join the team",
+        "category_id": null,
+        "ping_roles": []
+      },
+      "discord": {
+        "label": "Discord Orders",
+        "description": "Servers, embeds, setup",
+        "category_id": null,
+        "ping_roles": []
+      },
+      "livery": {
+        "label": "Livery Orders",
+        "description": "ER:LC vehicle liveries",
+        "category_id": null,
+        "ping_roles": []
+      },
+      "uniform": {
+        "label": "Uniform Orders",
+        "description": "ER:LC uniforms",
+        "category_id": null,
+        "ping_roles": []
+      },
+      "graphics": {
+        "label": "Graphics",
+        "description": "Logos, banners, branding",
+        "category_id": null,
+        "ping_roles": []
+      },
+      "bot": {
+        "label": "Bot Orders",
+        "description": "Custom bot development",
+        "category_id": null,
+        "ping_roles": []
+      },
+      "els": {
+        "label": "ELS Orders",
+        "description": "ER:LC lighting patterns",
+        "category_id": null,
+        "ping_roles": []
+      },
+      "photography": {
+        "label": "Photography",
+        "description": "Photography services",
+        "category_id": null,
+        "ping_roles": []
+      },
+      "google": {
+        "label": "Google Services Orders",
+        "description": "Docs, Sheets, Forms",
+        "category_id": null,
+        "ping_roles": []
+      },
+      "hosting": {
+        "label": "Hosting",
+        "description": "Bot and service hosting",
+        "category_id": null,
+        "ping_roles": []
+      },
+      "maps": {
+        "label": "Map Templates",
+        "description": "ER:LC map templates",
+        "category_id": null,
+        "ping_roles": []
+      },
+      "videography": {
+        "label": "Videography Orders",
+        "description": "Video editing",
+        "category_id": null,
+        "ping_roles": []
+      },
+      "website": {
+        "label": "Website Development Orders",
+        "description": "Websites and web apps",
+        "category_id": null,
+        "ping_roles": []
+      }
+    },
+    "panels": {
+      "orders": {
+        "text": "**Order here** — pick a service below to open a ticket.",
+        "placeholder": "Select an order type",
+        "categories": [
+          "discord",
+          "livery",
+          "uniform",
+          "graphics",
+          "bot",
+          "els",
+          "photography",
+          "google",
+          "hosting",
+          "maps",
+          "videography",
+          "website"
+        ]
+      },
+      "support": {
+        "text": "**Need help?** Pick the closest option below.",
+        "placeholder": "Select a reason",
+        "categories": [
+          "support",
+          "claiming",
+          "applications"
+        ]
+      }
     }
   }
 }

@@ -1,4 +1,4 @@
-"""Global bans across every Blueprint Designs server.
+"""Global bans across every Sail's Customs server.
 
 One ban entry applies everywhere the bot is. Adding a ban fans it out to all
 current guilds; joining a new guild replays the whole list into it; and anyone
@@ -26,7 +26,7 @@ log = logging.getLogger("blueprint.globalban")
 
 store = JSONStore("globalbans", {})
 
-BAN_REASON_PREFIX = "[Blueprint Global Ban]"
+BAN_REASON_PREFIX = "[Sail's Customs Global Ban]"
 
 
 async def ban_entries() -> dict[str, dict]:
@@ -157,10 +157,10 @@ class GlobalBan(commands.Cog):
     # -- commands ---------------------------------------------------------
 
     gban = app_commands.Group(
-        name="gban", description="Global bans across all Blueprint servers"
+        name="gban", description="Global bans across all servers"
     )
 
-    @gban.command(name="add", description="Globally ban a user from every Blueprint server")
+    @gban.command(name="add", description="Globally ban a user from every server")
     @app_commands.describe(
         user="User ID, or mention someone in this server",
         reason="Why they're being banned",

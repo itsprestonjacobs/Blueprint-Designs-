@@ -92,7 +92,7 @@ class AntiRaid(commands.Cog):
         self, member: discord.Member, age_hours: float, minimum: int
     ) -> None:
         action = str(cfg("young_account_action", "hold")).lower()
-        reason = f"[Blueprint Anti-Raid] account {age_hours:.1f}h old, minimum {minimum}h"
+        reason = f"[Sail's Customs Anti-Raid] account {age_hours:.1f}h old, minimum {minimum}h"
 
         try:
             if action == "kick":
@@ -140,7 +140,7 @@ class AntiRaid(commands.Cog):
             return
 
         try:
-            await member.add_roles(role, reason=f"[Blueprint Anti-Raid] {why}")
+            await member.add_roles(role, reason=f"[Sail's Customs Anti-Raid] {why}")
         except (discord.Forbidden, discord.HTTPException):
             log.warning("could not quarantine %s in %s", member, member.guild)
 
@@ -157,7 +157,7 @@ class AntiRaid(commands.Cog):
             if guild.verification_level < discord.VerificationLevel.high:
                 await guild.edit(
                     verification_level=discord.VerificationLevel.high,
-                    reason="[Blueprint Anti-Raid] raid detected",
+                    reason="[Sail's Customs Anti-Raid] raid detected",
                 )
                 raised = "raised to High"
         except (discord.Forbidden, discord.HTTPException):
@@ -199,7 +199,7 @@ class AntiRaid(commands.Cog):
         try:
             await guild.edit(
                 verification_level=discord.VerificationLevel.medium,
-                reason="[Blueprint Anti-Raid] lockdown lifted",
+                reason="[Sail's Customs Anti-Raid] lockdown lifted",
             )
         except (discord.Forbidden, discord.HTTPException):
             pass

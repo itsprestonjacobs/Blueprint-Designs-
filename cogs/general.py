@@ -21,7 +21,7 @@ class General(commands.Cog):
         view = ui.panel(
             "Pong",
             f"Gateway latency **{latency}ms**",
-            footer=config.get("branding.footer", "Blueprint Utilities"),
+            footer=config.get("branding.footer", "Sail's Customs"),
         )
         await interaction.response.send_message(view=view, ephemeral=True)
 

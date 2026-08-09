@@ -95,7 +95,7 @@ class Presence(commands.Cog):
 
         return {
             "members": guild.member_count if guild else 0,
-            "guild": guild.name if guild else "Blueprint",
+            "guild": guild.name if guild else "Sail's Customs",
             "channels": len(guild.channels) if guild else 0,
         }
 

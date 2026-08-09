@@ -203,7 +203,7 @@ class AntiNuke(commands.Cog):
     async def _punish(
         self, guild: discord.Guild, member: discord.Member, key: str, action: str
     ) -> str:
-        reason = f"[Blueprint Anti-Nuke] {key} threshold exceeded"
+        reason = f"[Sail's Customs Anti-Nuke] {key} threshold exceeded"
 
         if member.top_role >= guild.me.top_role:
             return "above me in the role list — could not act"
