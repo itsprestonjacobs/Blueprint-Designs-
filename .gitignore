@@ -12,3 +12,5 @@ bot.log
 panel.log
 config.backup.json
 *.tmp
+*.bak
+*.corrupt

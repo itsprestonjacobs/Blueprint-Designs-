@@ -8,7 +8,7 @@ from discord.ext import commands
 
 from core import ui
 from core.config import config
-from core.perms import require
+from core.perms import has_tier, require
 
 
 class General(commands.Cog):
@@ -24,6 +24,65 @@ class General(commands.Cog):
             footer=config.get("branding.footer", "Sail's Customs"),
         )
         await interaction.response.send_message(view=view, ephemeral=True)
+
+    @app_commands.command(name="help", description="What this bot can do")
+    async def help_command(self, interaction: discord.Interaction) -> None:
+        """Built from the live command tree, so it can't drift out of date."""
+        staff = has_tier(interaction.user, "support", "designer", "hr", "admin")
+
+        groups: dict[str, list[str]] = {}
+        for command in sorted(self.bot.tree.get_commands(), key=lambda c: c.name):
+            if isinstance(command, app_commands.Group):
+                names = [f"`/{command.name} {s.name}`" for s in sorted(command.commands, key=lambda s: s.name)]
+                groups[command.name] = names
+            else:
+                groups.setdefault("_top", []).append(f"`/{command.name}`")
+
+        sections = [
+            ("Tickets", ["ticket"]),
+            ("Applications", ["apply"]),
+            ("Leave", ["loa"]),
+            ("Security", ["gban", "antinuke", "antiraid"]),
+            ("Moderation", ["infraction"]),
+            ("Bot", ["presence"]),
+        ]
+
+        body: list[str] = [
+            "Everything below is a slash command. Staff-only ones are hidden "
+            "from members automatically by their role checks.",
+            "",
+        ]
+        used: set[str] = set()
+        for title, keys in sections:
+            lines = []
+            for key in keys:
+                if key in groups:
+                    lines.extend(groups[key])
+                    used.add(key)
+            if lines:
+                body.append(f"**{title}**")
+                body.append(" · ".join(lines))
+                body.append("")
+
+        loose = groups.get("_top", [])
+        extra = [v for k, vs in groups.items() if k not in used and k != "_top" for v in vs]
+        if loose or extra:
+            body.append("**Other**")
+            body.append(" · ".join(sorted(loose + extra)))
+
+        if staff:
+            body.append("")
+            body.append("-# `/lookup` pulls someone's whole history into one place.")
+
+        brand = config.get("branding.name", "Sail's Customs")
+        await interaction.response.send_message(
+            view=ui.panel(
+                f"{brand} — Commands",
+                "\n".join(body).strip(),
+                footer=config.get("branding.footer", "Sail's Customs"),
+            ),
+            ephemeral=True,
+        )
 
     @app_commands.command(name="config", description="Show which config values still need IDs")
     @require("admin")

@@ -18,10 +18,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
+
+log = logging.getLogger("blueprint.store")
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
@@ -52,13 +55,38 @@ class JSONStore:
             with self.path.open("r", encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, OSError):
-            # A truncated file shouldn't take the bot down. Keep the damaged
-            # copy for inspection and carry on from the default.
-            if self.path.exists():
+            # A damaged file shouldn't take the bot down, and it shouldn't
+            # silently lose everything either. Keep the bad copy, then fall
+            # back to the last good backup before giving up on the data.
+            log.error("%s is unreadable; keeping it as .corrupt", self.path.name)
+            try:
                 self.path.replace(self.path.with_suffix(".json.corrupt"))
+            except OSError:
+                pass
+
+            backup = self.path.with_suffix(".json.bak")
+            if backup.exists():
+                try:
+                    with backup.open("r", encoding="utf-8") as f:
+                        recovered = json.load(f)
+                    log.warning("recovered %s from its backup", self.path.name)
+                    return recovered
+                except (json.JSONDecodeError, OSError):
+                    log.error("backup for %s is unreadable too", self.path.name)
+
             return json.loads(json.dumps(self.default))
 
     def _write_sync(self, data: Any) -> None:
+        # Keep the previous version before replacing it. os.replace is atomic,
+        # so a crash can't truncate the file -- but nothing protects against a
+        # logic bug writing wrong data, and on a host there's no undo.
+        if self.path.exists():
+            try:
+                backup = self.path.with_suffix(".json.bak")
+                backup.write_bytes(self.path.read_bytes())
+            except OSError:
+                pass  # a failed backup must never block the write
+
         tmp = self.path.with_suffix(".json.tmp")
         with tmp.open("w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -103,18 +131,6 @@ class JSONStore:
             return current
 
 
-# Shared stores. Declared here so cog reloads reuse the same lock and cache.
-tickets = JSONStore("tickets", {})
-orders = JSONStore("orders", {})
-infractions = JSONStore("infractions", {})
-loa = JSONStore("loa", {})
-giveaways = JSONStore("giveaways", {})
-applications = JSONStore("applications", {})
-reviews = JSONStore("reviews", {})
-suggestions = JSONStore("suggestions", {})
-payouts = JSONStore("payouts", {})
-modcases = JSONStore("modcases", {})
-counters = JSONStore("counters", {})
-boards = JSONStore("boards", {})
-activity = JSONStore("activity", {})
-qc = JSONStore("qc", {})
+# Cogs declare their own stores. Two JSONStore instances for the same file
+# share a lock through the class-level registry above, so read-only views from
+# another module (e.g. cogs/lookup.py) are safe.
