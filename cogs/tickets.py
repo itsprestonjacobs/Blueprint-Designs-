@@ -20,6 +20,7 @@ import discord
 from discord import app_commands, ui as dui
 from discord.ext import commands
 
+from core import ui
 from core.config import config
 from core.logs import get_channel
 from core.perms import has_tier, require
@@ -108,9 +109,18 @@ class ClaimButton(dui.DynamicItem[dui.Button], template=r"tk:claim:(?P<cid>\d+)"
                 )
                 return
             ticket["claimed_by"] = interaction.user.id
+            snapshot = dict(ticket)
 
-        await interaction.response.edit_message(view=TicketControls(self.cid, claimed=True))
-        await interaction.followup.send(f"{interaction.user.mention} claimed this ticket.")
+        category = categories().get(snapshot.get("category"), {})
+        await interaction.response.edit_message(
+            view=opening_view(self.cid, snapshot, category),
+            content=None,
+            embeds=[],
+            attachments=[],
+        )
+        await interaction.followup.send(
+            f"{interaction.user.mention} is handling this ticket."
+        )
 
 
 class CloseButton(dui.DynamicItem[dui.Button], template=r"tk:close:(?P<cid>\d+)"):
@@ -149,8 +159,41 @@ class CloseButton(dui.DynamicItem[dui.Button], template=r"tk:close:(?P<cid>\d+)"
         )
 
 
+def opening_view(cid: int, ticket: dict, category: dict) -> ui.BaseLayout:
+    """The panel pinned at the top of a ticket.
+
+    Rebuilt from the stored ticket whenever something changes, so claiming
+    updates this message in place rather than adding another one below it.
+    """
+    claimed_by = ticket.get("claimed_by")
+
+    header = f"{category.get('emoji', '🎫')} {ticket.get('label', 'Ticket')}"
+    body = [
+        f"**Ticket #{ticket.get('number', '?')}** · opened by <@{ticket.get('user')}>",
+        "",
+        category.get("prompt", "Tell us what you need and someone will help."),
+        "",
+        ui.field(
+            "Status",
+            f"Claimed by <@{claimed_by}>" if claimed_by else "Waiting for staff",
+        ),
+        ui.field("Opened", f"<t:{ticket.get('created_at', 0)}:R>"),
+    ]
+
+    view = ui.BaseLayout(timeout=None)
+    view.add_item(
+        ui.container(
+            ui.text(f"## {header}\n" + "\n".join(body)),
+            ui.separator(large=True),
+            ui.row(ClaimButton(cid, bool(claimed_by)), CloseButton(cid)),
+            color=ui.GREEN_HEX if claimed_by else None,
+        )
+    )
+    return view.validate()
+
+
 class TicketControls(dui.View):
-    """Claim and close, pinned at the top of every ticket."""
+    """Fallback controls for tickets opened before the panel existed."""
 
     def __init__(self, cid: int, claimed: bool = False) -> None:
         super().__init__(timeout=None)
@@ -324,30 +367,28 @@ async def create_ticket(
         await interaction.followup.send(f"Couldn't create the channel: {exc}", ephemeral=True)
         return
 
+    ticket = {
+        "number": number,
+        "user": interaction.user.id,
+        "category": key,
+        "label": category.get("label", key),
+        "claimed_by": None,
+        "status": "open",
+        "created_at": int(time.time()),
+    }
     async with store.edit() as data:
-        data.setdefault("tickets", {})[str(channel.id)] = {
-            "number": number,
-            "user": interaction.user.id,
-            "category": key,
-            "label": category.get("label", key),
-            "claimed_by": None,
-            "status": "open",
-            "created_at": int(time.time()),
-        }
-
-    mentions = " ".join(f"<@&{r}>" for r in ping_roles)
-    opening = (
-        f"{interaction.user.mention} {mentions}\n\n"
-        f"**{category.get('label', key)}** · Ticket #{number}\n"
-        "Describe what you need and someone will be with you shortly."
-    )
+        data.setdefault("tickets", {})[str(channel.id)] = ticket
 
     try:
+        # Pings go in their own message: a V2 message can't carry text content,
+        # and a mention only fires from real content.
+        mentions = " ".join(f"<@&{r}>" for r in ping_roles)
         await channel.send(
-            opening,
-            view=TicketControls(channel.id),
+            f"{interaction.user.mention} {mentions}".strip(),
             allowed_mentions=discord.AllowedMentions(users=True, roles=True),
         )
+        message = await channel.send(view=opening_view(channel.id, ticket, category))
+        await message.pin(reason="Ticket controls")
     except discord.HTTPException:
         log.exception("could not post opening message in #%s", channel)
 
