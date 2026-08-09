@@ -51,6 +51,28 @@ def nick_prefix() -> str:
     return str(config.get("loa.nick_prefix", "LOA | ") or "")
 
 
+def rename_blocker(member: discord.Member) -> str | None:
+    """Why this member can't be renamed, or None if they can be.
+
+    Checked up front so the reason given is accurate. Discord refuses to let
+    any bot rename the guild owner no matter what permissions it holds, which
+    is easily mistaken for a role-position problem.
+    """
+    guild = member.guild
+    if member.id == guild.owner_id:
+        return "Discord doesn't let bots rename the server owner"
+
+    me = guild.me
+    if me is None:
+        return "I'm not in that server"
+    if not me.guild_permissions.manage_nicknames:
+        return "I don't have Manage Nicknames"
+    if member.top_role >= me.top_role:
+        return "their highest role sits at or above mine"
+
+    return None
+
+
 async def apply_prefix(member: discord.Member) -> str | None:
     """Prefix a member's display name, keeping the rest of it.
 
@@ -191,17 +213,19 @@ class NoteModal(dui.Modal):
         note = ""
         member = interaction.guild.get_member(snapshot["user"]) if interaction.guild else None
 
-        if approved and member is not None:
+        if approved and member is not None and nick_prefix():
             # Prefix the nickname so the whole team can see who's away.
-            original = await apply_prefix(member)
-            if original is not None:
-                async with store.edit() as data:
-                    row = (data.get("requests") or {}).get(str(self.lid))
-                    if row is not None:
-                        row["original_nick"] = original
-                note += f"\n-# Renamed to `{member.display_name}`."
-            elif nick_prefix():
-                note += "\n-# Couldn't rename them — they're above me in the role list."
+            blocker = rename_blocker(member)
+            if blocker:
+                note += f"\n-# Couldn't add the `{nick_prefix()}`prefix — {blocker}."
+            else:
+                original = await apply_prefix(member)
+                if original is not None:
+                    async with store.edit() as data:
+                        row = (data.get("requests") or {}).get(str(self.lid))
+                        if row is not None:
+                            row["original_nick"] = original
+                    note += f"\n-# Renamed to `{member.display_name}`."
 
             # Grant the LOA role too, if one is configured.
             role_id = config.get("loa.role_id")
