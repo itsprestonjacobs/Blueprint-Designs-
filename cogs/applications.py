@@ -63,13 +63,25 @@ class Session:
 # -- review post ----------------------------------------------------------
 
 
+IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
+
+
 def review_view(aid: int, entry: dict, decided: bool = False) -> ui.BaseLayout:
-    """The application as reviewers see it."""
+    """The application as reviewers see it, portfolio images included.
+
+    Images are shown inline via `attachment://`, so they live on this message
+    rather than in a follow-up someone has to scroll for. That means every edit
+    of this message has to carry the existing attachments forward.
+    """
     status = entry.get("status", "pending")
     colour = {
         "accepted": ui.GREEN_HEX,
         "denied": ui.RED_HEX,
     }.get(status, ui.AMBER_HEX)
+
+    names = entry.get("filenames") or []
+    images = [n for n in names if n.lower().endswith(IMAGE_EXTS)]
+    others = [n for n in names if n not in images]
 
     body = [
         ui.field("Applicant", f"<@{entry['user']}> (`{entry['user']}`)"),
@@ -78,22 +90,32 @@ def review_view(aid: int, entry: dict, decided: bool = False) -> ui.BaseLayout:
         "**Response**",
         entry.get("response", "")[:1200],
         "",
-        ui.field("Files", entry.get("files", 0)),
         ui.field("Status", status.title()),
     ]
+    if others:
+        body.append(ui.field("Other files", ", ".join(f"`{n}`" for n in others)))
     if entry.get("reviewer"):
         body.append(ui.field("Reviewed by", f"<@{entry['reviewer']}>"))
     if entry.get("reason"):
         body.append(ui.field("Reason", entry["reason"]))
 
-    view = ui.BaseLayout(timeout=None)
     children: list[dui.Item] = [
         ui.text(f"## Application #{aid}\n" + "\n".join(body))
     ]
-    if not decided:
+
+    if images:
         children.append(ui.separator())
+        children.append(ui.text(f"**Past work** — {len(images)} file(s)"))
+        # A media gallery caps at 10 items, same as the attachment limit.
+        gallery = ui.gallery(*[f"attachment://{n}" for n in images[:10]])
+        if gallery:
+            children.append(gallery)
+
+    if not decided:
+        children.append(ui.separator(large=True))
         children.append(ui.row(Decide("accept", aid), Decide("deny", aid)))
 
+    view = ui.BaseLayout(timeout=None)
     view.add_item(ui.container(*children, color=colour))
     return view.validate()
 
@@ -103,10 +125,13 @@ class ReasonModal(dui.Modal):
         label="Reason", style=discord.TextStyle.paragraph, required=True, max_length=400
     )
 
-    def __init__(self, action: str, aid: int) -> None:
+    def __init__(self, action: str, aid: int, message: discord.Message | None = None) -> None:
         super().__init__(title=f"{action.title()} application #{aid}"[:45])
         self.action = action
         self.aid = aid
+        # Held so the edit can carry the portfolio attachments forward; passing
+        # attachments=[] on edit would strip the images off the message.
+        self.message = message
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         accepted = self.action == "accept"
@@ -129,11 +154,12 @@ class ReasonModal(dui.Modal):
             entry["decided_at"] = int(time.time())
             snapshot = dict(entry)
 
+        keep = list(self.message.attachments) if self.message else []
         await interaction.response.edit_message(
             view=review_view(self.aid, snapshot, decided=True),
             content=None,
             embeds=[],
-            attachments=[],
+            attachments=keep,
         )
 
         # Grant the role and tell the applicant.
@@ -198,7 +224,9 @@ class Decide(dui.DynamicItem[dui.Button], template=r"app:(?P<action>accept|deny)
         if not has_tier(interaction.user, "hr", "admin"):
             await interaction.response.send_message(view=ui.err("HR only."), ephemeral=True)
             return
-        await interaction.response.send_modal(ReasonModal(self.action, self.aid))
+        await interaction.response.send_modal(
+            ReasonModal(self.action, self.aid, interaction.message)
+        )
 
 
 # -- the apply panel ------------------------------------------------------
@@ -435,12 +463,29 @@ class Applications(commands.Cog):
         self.sessions.pop(user.id, None)
 
         aid = await store.next_id("_counter")
+
+        # Re-upload rather than link: Discord signs CDN URLs and they expire
+        # within a day, so a linked portfolio would rot. Names are prefixed to
+        # stay unique -- two files called image.png would otherwise collide and
+        # the gallery would show the same one twice.
+        files: list[discord.File] = []
+        filenames: list[str] = []
+        for i, att in enumerate(session.files[:10], start=1):
+            safe = re.sub(r"[^A-Za-z0-9._-]", "_", att.filename)[-60:]
+            name = f"{i}-{safe}"
+            try:
+                files.append(await att.to_file(filename=name))
+                filenames.append(name)
+            except (discord.HTTPException, discord.NotFound):
+                log.warning("could not fetch attachment %s for application", att.filename)
+
         entry = {
             "id": aid,
             "user": user.id,
             "categories": session.categories,
             "response": session.response,
-            "files": len(session.files),
+            "files": len(filenames),
+            "filenames": filenames,
             "status": "pending",
             "at": int(time.time()),
         }
@@ -457,25 +502,11 @@ class Applications(commands.Cog):
             return
 
         try:
-            await channel.send(view=review_view(aid, entry))
+            await channel.send(view=review_view(aid, entry), files=files)
         except discord.HTTPException:
             log.exception("could not post application %s", aid)
             await user.send(view=ui.err("Something broke posting that. Tell an admin."))
             return
-
-        # Re-upload the portfolio so it outlives Discord's signed CDN links.
-        if session.files:
-            files = []
-            for att in session.files:
-                try:
-                    files.append(await att.to_file())
-                except (discord.HTTPException, discord.NotFound):
-                    continue
-            if files:
-                try:
-                    await channel.send(f"Portfolio for application #{aid}", files=files)
-                except discord.HTTPException:
-                    log.exception("could not upload portfolio for %s", aid)
 
         await user.send(
             view=ui.ok(f"Application **#{aid}** is in. We'll message you with a decision.")
