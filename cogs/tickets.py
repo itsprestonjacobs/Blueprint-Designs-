@@ -577,6 +577,63 @@ class Tickets(commands.Cog):
             if current.lower() in g.lower()
         ][:25]
 
+    @ticket.command(
+        name="testguard", description="Fire a real close-abuse alert against yourself"
+    )
+    @require("admin", "hr")
+    async def testguard(self, interaction: discord.Interaction) -> None:
+        """Trip the close guard on purpose, to check the alert and the buttons.
+
+        Deliberately runs the real code path rather than faking the message:
+        a test that posts a mock alert proves nothing about whether the guard
+        actually fires. This really does block you -- press Restore to clear it.
+        """
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        limit, window = close_limit()
+        await set_blocked(interaction.user.id, False)
+        close_tracker.clear_actor(interaction.guild_id or 0, interaction.user.id)
+        recent_closes.pop(interaction.user.id, None)
+
+        for i in range(1, limit + 1):
+            await register_close(
+                self.bot, interaction.guild_id or 0, interaction.user, f"test-ticket-{i}"
+            )
+
+        blocked = await is_blocked(interaction.user.id)
+        where = config.channel_id("raid_alerts") or config.channel_id("security_log")
+
+        await interaction.followup.send(
+            view=ui.panel(
+                "Close Guard Test",
+                "\n".join(
+                    [
+                        ui.field("Simulated closes", f"{limit} in under {window}s"),
+                        ui.field("You are now blocked", "yes" if blocked else "no"),
+                        ui.field("Alert posted to", f"<#{where}>" if where else "nowhere — unset"),
+                        "",
+                        "Go press **Restore** on that alert to unblock yourself.",
+                    ]
+                ),
+                color=ui.AMBER_HEX if blocked else ui.RED_HEX,
+            ),
+            ephemeral=True,
+        )
+
+    @ticket.command(name="unblock", description="Clear someone's ticket-closing block")
+    @require("admin", "hr")
+    async def unblock(self, interaction: discord.Interaction, member: discord.Member) -> None:
+        if not await is_blocked(member.id):
+            await interaction.response.send_message(
+                f"{member.mention} isn't blocked.", ephemeral=True
+            )
+            return
+        await set_blocked(member.id, False)
+        close_tracker.clear_actor(interaction.guild_id or 0, member.id)
+        await interaction.response.send_message(
+            f"{member.mention} can close tickets again.", ephemeral=True
+        )
+
     @ticket.command(name="add", description="Add a member to this ticket")
     @require(*STAFF_TIERS)
     async def add(self, interaction: discord.Interaction, member: discord.Member) -> None:
