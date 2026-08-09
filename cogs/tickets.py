@@ -15,6 +15,7 @@ import io
 import logging
 import re
 import time
+from collections import defaultdict, deque
 
 import discord
 from discord import app_commands, ui as dui
@@ -24,6 +25,7 @@ from core import ui
 from core.config import config
 from core.logs import get_channel
 from core.perms import has_tier, require
+from core.security import RateTracker
 from core.store import JSONStore
 
 log = logging.getLogger("blueprint.tickets")
@@ -152,11 +154,149 @@ class CloseButton(dui.DynamicItem[dui.Button], template=r"tk:close:(?P<cid>\d+)"
             )
             return
 
+        if await is_blocked(interaction.user.id):
+            await interaction.response.send_message(
+                "You're blocked from closing tickets pending review.", ephemeral=True
+            )
+            return
+
         await interaction.response.send_message(
             "Close this ticket? A transcript is saved first.",
             view=ConfirmClose(self.cid),
             ephemeral=True,
         )
+
+
+# -- close-rate guard -----------------------------------------------------
+#
+# Someone burning through tickets is either abusing staff powers or is a
+# compromised account. Blocking is deliberately reversible and needs a human to
+# confirm either way, because a legitimate cleanup of spam tickets looks
+# identical to abuse from the counter's point of view.
+
+close_tracker = RateTracker()
+recent_closes: dict[int, deque[str]] = defaultdict(lambda: deque(maxlen=10))
+
+
+def close_limit() -> tuple[int, int]:
+    return (
+        int(config.get("tickets.close_limit", 3) or 3),
+        int(config.get("tickets.close_window", 30) or 30),
+    )
+
+
+async def is_blocked(user_id: int) -> bool:
+    data = await store.read()
+    return str(user_id) in (data.get("blocked") or {})
+
+
+async def set_blocked(user_id: int, blocked: bool, reviewer: int | None = None) -> None:
+    async with store.edit() as data:
+        blocks = data.setdefault("blocked", {})
+        if blocked:
+            blocks[str(user_id)] = {"at": int(time.time()), "reviewer": reviewer}
+        else:
+            blocks.pop(str(user_id), None)
+
+
+class BlockDecision(
+    dui.DynamicItem[dui.Button], template=r"tk:block:(?P<action>restore|keep):(?P<uid>\d+)"
+):
+    def __init__(self, action: str, uid: int) -> None:
+        restore = action == "restore"
+        super().__init__(
+            dui.Button(
+                label="Restore" if restore else "Continue Blocking",
+                style=discord.ButtonStyle.success if restore else discord.ButtonStyle.danger,
+                custom_id=f"tk:block:{action}:{uid}",
+            )
+        )
+        self.action = action
+        self.uid = uid
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match: re.Match[str]):
+        return cls(match["action"], int(match["uid"]))
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if not has_tier(interaction.user, "hr", "admin"):
+            await interaction.response.send_message("HR only.", ephemeral=True)
+            return
+
+        restore = self.action == "restore"
+        await set_blocked(self.uid, not restore, interaction.user.id)
+        if restore:
+            close_tracker.clear_actor(interaction.guild_id or 0, self.uid)
+
+        await interaction.response.edit_message(
+            view=close_alert_view(
+                self.uid,
+                list(recent_closes.get(self.uid, [])),
+                resolved=(
+                    f"{'Restored' if restore else 'Kept blocked'} by "
+                    f"{interaction.user.mention}"
+                ),
+            ),
+            content=None,
+            embeds=[],
+            attachments=[],
+        )
+
+
+def close_alert_view(
+    user_id: int, channels: list[str], resolved: str | None = None
+) -> ui.BaseLayout:
+    limit, window = close_limit()
+    listed = ", ".join(f"`{c}`" for c in channels[-5:]) or "none recorded"
+
+    body = [
+        f"<@{user_id}> (`{user_id}`) closed **{limit}** tickets within a "
+        f"{window} second window and has been automatically blocked from "
+        "closing further tickets pending review.",
+        "",
+        f"**Recent tickets closed:** {listed}",
+    ]
+    if resolved:
+        body += ["", ui.field("Resolved", resolved)]
+
+    view = ui.BaseLayout(timeout=None)
+    children: list[dui.Item] = [ui.text("## Ticket Closing Alert\n" + "\n".join(body))]
+    if not resolved:
+        children.append(ui.separator())
+        children.append(
+            ui.row(BlockDecision("restore", user_id), BlockDecision("keep", user_id))
+        )
+
+    view.add_item(
+        ui.container(*children, color=ui.GREEN_HEX if resolved else ui.RED_HEX)
+    )
+    return view.validate()
+
+
+async def register_close(
+    bot: discord.Client, guild_id: int, user: discord.abc.User, channel_name: str
+) -> None:
+    """Count a close and raise the alarm if the rate is out of hand."""
+    recent_closes[user.id].append(channel_name)
+
+    limit, window = close_limit()
+    seen = close_tracker.hit(guild_id, user.id, "close", window)
+    if seen < limit or await is_blocked(user.id):
+        return
+
+    await set_blocked(user.id, True)
+
+    view = close_alert_view(user.id, list(recent_closes[user.id]))
+    for key in ("raid_alerts", "security_log"):
+        channel = await get_channel(bot, key)
+        if channel is not None:
+            try:
+                await channel.send(view=view)
+            except discord.HTTPException:
+                log.exception("could not post close alert")
+            break
+
+    log.warning("%s blocked from closing tickets (%d in %ds)", user, seen, window)
 
 
 def opening_view(cid: int, ticket: dict, category: dict) -> ui.BaseLayout:
@@ -225,6 +365,9 @@ async def close_ticket(
 ) -> None:
     ticket = await get_ticket(channel.id) or {}
     transcript = await build_transcript(channel)
+
+    # Count this close before the channel disappears, so the alert can name it.
+    await register_close(bot, channel.guild.id, closer, channel.name)
 
     summary = (
         f"**Ticket #{ticket.get('number', '?')} closed**\n"
@@ -404,7 +547,7 @@ class Tickets(commands.Cog):
         self.bot = bot
 
     async def cog_load(self) -> None:
-        self.bot.add_dynamic_items(ClaimButton, CloseButton)
+        self.bot.add_dynamic_items(ClaimButton, CloseButton, BlockDecision)
         for group in panels():
             self.bot.add_view(TicketPanel(group))
 
@@ -465,6 +608,11 @@ class Tickets(commands.Cog):
         ):
             await interaction.response.send_message(
                 "You can't close this ticket.", ephemeral=True
+            )
+            return
+        if await is_blocked(interaction.user.id):
+            await interaction.response.send_message(
+                "You're blocked from closing tickets pending review.", ephemeral=True
             )
             return
         await interaction.response.send_message(
