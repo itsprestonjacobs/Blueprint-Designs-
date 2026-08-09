@@ -13,7 +13,8 @@
     "designer": []
   },
   "channels": {
-    "mod_log": null
+    "mod_log": null,
+    "security_log": null
   },
   "presence": {
     "enabled": true,
@@ -37,5 +38,65 @@
         "text": "the design queue"
       }
     ]
+  },
+  "security": {
+    "gban_role": null,
+    "quarantine_role": null,
+    "whitelist_users": [],
+    "whitelist_roles": [],
+    "antinuke": {
+      "enabled": true,
+      "punishment": "quarantine",
+      "thresholds": {
+        "ban": {
+          "count": 3,
+          "window": 20
+        },
+        "kick": {
+          "count": 4,
+          "window": 20
+        },
+        "channel_delete": {
+          "count": 3,
+          "window": 20
+        },
+        "channel_create": {
+          "count": 5,
+          "window": 20
+        },
+        "role_delete": {
+          "count": 3,
+          "window": 20
+        },
+        "role_create": {
+          "count": 5,
+          "window": 20
+        },
+        "webhook_create": {
+          "count": 3,
+          "window": 20
+        },
+        "role_grant": {
+          "count": 5,
+          "window": 20
+        },
+        "prune": {
+          "count": 1,
+          "window": 60
+        },
+        "guild_update": {
+          "count": 3,
+          "window": 30
+        }
+      }
+    },
+    "antiraid": {
+      "enabled": true,
+      "join_limit": 6,
+      "join_window": 10,
+      "min_account_age_hours": 0,
+      "young_account_action": "hold",
+      "lockdown_minutes": 10
+    }
   }
 }

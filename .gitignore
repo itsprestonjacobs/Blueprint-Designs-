@@ -9,3 +9,6 @@ transcripts/
 config.json
 !config.example.json
 bot.log
+panel.log
+config.backup.json
+*.tmp
