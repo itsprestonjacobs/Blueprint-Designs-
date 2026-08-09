@@ -280,7 +280,7 @@ def panel(
         children.append(text("\n".join(heading)))
 
     if rows:
-        children.append(separator())
+        children.append(separator(large=True))
         children.extend(rows)
 
     if footer:

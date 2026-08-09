@@ -1,12 +1,23 @@
 {
   "title": "Dashboard",
-  "banner": "assets/blueprint.png",
+  "banner": "assets/banners/dashboard.png",
   "body": "**Blueprint Designs** builds custom work for Roblox and Discord. Liveries, uniforms, ELS, graphics, bots, sites.\n\nEverything you need is below. Head to the order channel to buy, or open a ticket if you're stuck.",
   "footer": "Blueprint Designs",
   "buttons": [
-    { "label": "Careers", "url": "config:links.careers", "emoji": "📋" },
-    { "label": "Support", "url": "config:links.support", "emoji": "🎫" },
-    { "label": "Roblox Group", "url": "config:links.roblox_group" }
+    {
+      "label": "Careers",
+      "url": "config:links.careers",
+      "emoji": "📋"
+    },
+    {
+      "label": "Support",
+      "url": "config:links.support",
+      "emoji": "🎫"
+    },
+    {
+      "label": "Roblox Group",
+      "url": "config:links.roblox_group"
+    }
   ],
   "select": {
     "placeholder": "Rules, terms and policies",

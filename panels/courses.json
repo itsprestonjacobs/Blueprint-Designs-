@@ -1,11 +1,19 @@
 {
   "title": "Courses",
-  "banner": "assets/blueprint.png",
+  "banner": "assets/banners/courses.png",
   "body": "Learn to build the things we sell. Taught by designers who actually do the work.\n\nPick a course below for what it covers and what it costs.",
   "footer": "Blueprint Designs",
   "buttons": [
-    { "label": "Course ToS", "url": "config:links.course_tos", "emoji": "📜" },
-    { "label": "Course Server", "url": "config:links.course_server", "emoji": "📦" }
+    {
+      "label": "Course ToS",
+      "url": "config:links.course_tos",
+      "emoji": "📜"
+    },
+    {
+      "label": "Course Server",
+      "url": "config:links.course_server",
+      "emoji": "📦"
+    }
   ],
   "select": {
     "placeholder": "Browse courses",

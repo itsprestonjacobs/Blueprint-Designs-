@@ -1,6 +1,6 @@
 {
   "title": "Quality Control",
-  "banner": "assets/blueprint.png",
+  "banner": "assets/banners/quality_control.png",
   "body": "Every order gets checked before it reaches the customer.\n\nDesigners: run `/qc` with your file and any notes. A reviewer approves it or sends it back with what to fix. Don't deliver anything that hasn't passed.",
   "footer": "Blueprint Designs",
   "select": {

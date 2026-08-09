@@ -130,7 +130,7 @@ class InfoPanel(ui.BaseLayout):
 
         buttons = build_buttons(spec.get("buttons", []))
         if buttons:
-            children.append(ui.separator())
+            children.append(ui.separator(large=True))
             # Discord allows at most 5 buttons per row.
             for i in range(0, len(buttons), 5):
                 children.append(ui.row(*buttons[i : i + 5]))
@@ -156,7 +156,7 @@ class InfoPanel(ui.BaseLayout):
             )
             select.callback = self._on_select
             if not buttons:
-                children.append(ui.separator())
+                children.append(ui.separator(large=True))
             children.append(ui.row(select))
 
         if spec.get("footer"):

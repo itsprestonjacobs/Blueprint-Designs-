@@ -1,6 +1,6 @@
 {
   "title": "Pricing",
-  "banner": "assets/blueprint.png",
+  "banner": "assets/banners/pricing.png",
   "body": "Base prices in Robux. Designers may add tax at their discretion.\n\nPick a category below for the full list. Bulk discounts apply where noted. Your quote is confirmed in the ticket before you pay.",
   "footer": "Prices subject to change",
   "buttons": [

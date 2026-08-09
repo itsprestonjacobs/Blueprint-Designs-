@@ -1,12 +1,22 @@
 {
   "title": "Store",
-  "banner": "assets/blueprint.png",
+  "banner": "assets/banners/store.png",
   "body": "Sponsored giveaways, ads, custom roles and donations.\n\nPick something below for details, then open a ticket to buy or claim it.",
   "footer": "Blueprint Designs",
   "buttons": [
-    { "label": "Live Queue", "url": "config:links.live_queue", "emoji": "📋" },
-    { "label": "Marketplace ToS", "url": "config:links.marketplace_tos" },
-    { "label": "Roblox Group", "url": "config:links.roblox_group" }
+    {
+      "label": "Live Queue",
+      "url": "config:links.live_queue",
+      "emoji": "📋"
+    },
+    {
+      "label": "Marketplace ToS",
+      "url": "config:links.marketplace_tos"
+    },
+    {
+      "label": "Roblox Group",
+      "url": "config:links.roblox_group"
+    }
   ],
   "select": {
     "placeholder": "Browse the store",
