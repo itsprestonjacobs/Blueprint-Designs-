@@ -44,6 +44,64 @@ def max_seconds() -> int:
     return int(config.get("loa.max_days", 30) or 30) * 86400
 
 
+NICK_LIMIT = 32  # Discord's hard cap on a nickname
+
+
+def nick_prefix() -> str:
+    return str(config.get("loa.nick_prefix", "LOA | ") or "")
+
+
+async def apply_prefix(member: discord.Member) -> str | None:
+    """Prefix a member's display name, keeping the rest of it.
+
+    Returns the name to restore later, or None if nothing was changed. The
+    original is handed back rather than recomputed because `nick` is None for
+    someone using their plain username, and we need to put that back exactly.
+    """
+    prefix = nick_prefix()
+    if not prefix:
+        return None
+
+    # Capture before editing -- member.nick reflects the new value afterwards.
+    current = member.display_name
+    if current.startswith(prefix):
+        return None
+
+    # Trim the name, never the prefix, so it stays recognisable at the cap.
+    room = NICK_LIMIT - len(prefix)
+    new = prefix + current[:room]
+
+    try:
+        await member.edit(nick=new, reason="Leave of absence approved")
+    except discord.Forbidden:
+        log.warning("cannot rename %s -- they're above me or I lack Manage Nicknames", member)
+        return None
+    except discord.HTTPException:
+        log.exception("failed to rename %s", member)
+        return None
+
+    return current
+
+
+async def remove_prefix(member: discord.Member, original: str) -> None:
+    """Restore the name we saved when the prefix was applied.
+
+    Only ever called with a stored original, so a member who already had the
+    prefix in their own name keeps it -- we undo what we did, nothing else.
+    """
+    prefix = nick_prefix()
+    if not prefix or not member.display_name.startswith(prefix):
+        return
+
+    # Setting nick to their username clears the nickname entirely.
+    restore = None if original == member.name else original
+
+    try:
+        await member.edit(nick=restore, reason="Leave ended")
+    except (discord.Forbidden, discord.HTTPException):
+        log.warning("could not restore nickname for %s", member)
+
+
 async def active_for(user_id: int) -> dict | None:
     data = await store.read()
     for entry in (data.get("requests") or {}).values():
@@ -130,18 +188,30 @@ class NoteModal(dui.Modal):
         except discord.HTTPException:
             log.exception("could not re-render LOA %s", self.lid)
 
-        # Grant the LOA role so the rest of the team can see who's away.
         note = ""
-        role_id = config.get("loa.role_id")
-        if approved and role_id and interaction.guild:
-            member = interaction.guild.get_member(snapshot["user"])
-            role = interaction.guild.get_role(int(role_id))
-            if member and role:
+        member = interaction.guild.get_member(snapshot["user"]) if interaction.guild else None
+
+        if approved and member is not None:
+            # Prefix the nickname so the whole team can see who's away.
+            original = await apply_prefix(member)
+            if original is not None:
+                async with store.edit() as data:
+                    row = (data.get("requests") or {}).get(str(self.lid))
+                    if row is not None:
+                        row["original_nick"] = original
+                note += f"\n-# Renamed to `{member.display_name}`."
+            elif nick_prefix():
+                note += "\n-# Couldn't rename them — they're above me in the role list."
+
+            # Grant the LOA role too, if one is configured.
+            role_id = config.get("loa.role_id")
+            role = interaction.guild.get_role(int(role_id)) if role_id else None
+            if role is not None:
                 try:
                     await member.add_roles(role, reason=f"LOA approved by {interaction.user}")
-                    note = f"\n-# Granted {role.mention}."
+                    note += f"\n-# Granted {role.mention}."
                 except discord.Forbidden:
-                    note = f"\n-# Couldn't grant {role.mention}, my role needs to sit above it."
+                    note += f"\n-# Couldn't grant {role.mention}, my role needs to sit above it."
 
         user = interaction.client.get_user(snapshot["user"])
         dmed = False
@@ -238,7 +308,7 @@ class LOA(commands.Cog):
                     expired.append(dict(entry))
 
         for entry in expired:
-            await self._strip_role(entry["user"])
+            await self._restore(entry["user"], entry.get("original_nick"))
             channel = await get_channel(self.bot, "loa_log")
             if channel is not None:
                 try:
@@ -255,14 +325,23 @@ class LOA(commands.Cog):
     async def before_expirer(self) -> None:
         await self.bot.wait_until_ready()
 
-    async def _strip_role(self, user_id: int) -> None:
-        role_id = config.get("loa.role_id")
+    async def _restore(self, user_id: int, original_nick: str | None = None) -> None:
+        """Undo everything approval applied: the nickname prefix and the role."""
         guild = self.bot.get_guild(config.guild_id) if config.guild_id else None
-        if not role_id or guild is None:
+        if guild is None:
             return
+
         member = guild.get_member(user_id)
-        role = guild.get_role(int(role_id))
-        if member and role and role in member.roles:
+        if member is None:
+            return
+
+        # Absent means we never renamed them, so there's nothing of ours to undo.
+        if original_nick is not None:
+            await remove_prefix(member, original_nick)
+
+        role_id = config.get("loa.role_id")
+        role = guild.get_role(int(role_id)) if role_id else None
+        if role is not None and role in member.roles:
             try:
                 await member.remove_roles(role, reason="Leave ended")
             except discord.HTTPException:
@@ -355,7 +434,7 @@ class LOA(commands.Cog):
             )
             return
 
-        await self._strip_role(interaction.user.id)
+        await self._restore(interaction.user.id, found.get("original_nick"))
 
         channel = await get_channel(self.bot, "loa_log")
         if channel is not None:
