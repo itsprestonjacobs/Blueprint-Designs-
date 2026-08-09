@@ -329,9 +329,20 @@ class GlobalBan(commands.Cog):
             view=ui.panel("Global Bans", body), ephemeral=True
         )
 
-    @gban.command(name="sync", description="Re-apply the whole ban list to every server")
+    async def existing_bans(self, guild: discord.Guild) -> set[int] | None:
+        """Every user ID currently banned in a guild, or None if unreadable."""
+        try:
+            return {entry.user.id async for entry in guild.bans(limit=None)}
+        except discord.Forbidden:
+            return None
+        except discord.HTTPException:
+            log.warning("could not read bans in %s", guild.name)
+            return None
+
+    @gban.command(name="sync", description="Apply any missing global bans to every server")
+    @app_commands.describe(server="Only sync this server (ID), otherwise all of them")
     @requires_gban()
-    async def sync(self, interaction: discord.Interaction) -> None:
+    async def sync(self, interaction: discord.Interaction, server: str | None = None) -> None:
         await interaction.response.defer(thinking=True)
 
         entries = await ban_entries()
@@ -339,27 +350,189 @@ class GlobalBan(commands.Cog):
             await interaction.followup.send(view=ui.warn("Nothing on the list to sync."))
             return
 
-        applied = 0
-        failures = 0
-        for uid, entry in entries.items():
-            ok, failed = await self.apply_ban(
-                int(uid), entry.get("reason", "global ban"), 0
+        targets = self.bot.guilds
+        if server:
+            sid = int(server) if server.isdigit() else None
+            targets = [g for g in self.bot.guilds if g.id == sid]
+            if not targets:
+                await interaction.followup.send(view=ui.err("I'm not in that server."))
+                return
+
+        wanted = {int(uid) for uid in entries}
+        lines: list[str] = []
+        total_applied = 0
+        total_failed = 0
+
+        for guild in targets:
+            current = await self.existing_bans(guild)
+            if current is None:
+                lines.append(f"{ui.ERR} **{guild.name}** — can't read bans (missing permission)")
+                continue
+
+            # Only ban who is actually missing; re-banning everyone every time
+            # burns rate limit for nothing.
+            missing = wanted - current
+            if not missing:
+                lines.append(f"{ui.OK} **{guild.name}** — already in sync ({len(wanted)})")
+                continue
+
+            applied = 0
+            failed = 0
+            for uid in missing:
+                entry = entries[str(uid)]
+                try:
+                    await guild.ban(
+                        discord.Object(id=uid),
+                        reason=f"{BAN_REASON_PREFIX} {entry.get('reason', '')}"[:500],
+                    )
+                    applied += 1
+                except discord.HTTPException:
+                    failed += 1
+
+            total_applied += applied
+            total_failed += failed
+            mark = ui.OK if not failed else ui.WARN
+            lines.append(
+                f"{mark} **{guild.name}** — added {applied}"
+                + (f", {failed} failed" if failed else "")
             )
-            applied += len(ok)
-            failures += len(failed)
 
         await interaction.followup.send(
             view=ui.panel(
-                "Sync Complete",
+                "Global Ban Sync",
                 "\n".join(
                     [
-                        ui.field("Entries", len(entries)),
-                        ui.field("Servers", len(self.bot.guilds)),
-                        ui.field("Bans applied", applied),
-                        ui.field("Failures", failures),
+                        ui.field("On the list", len(entries)),
+                        ui.field("Servers checked", len(targets)),
+                        ui.field("Bans added", total_applied),
+                        ui.field("Failures", total_failed),
+                        "",
+                        *lines,
                     ]
                 ),
+                color=ui.GREEN_HEX if not total_failed else ui.AMBER_HEX,
             )
+        )
+
+    @gban.command(name="audit", description="Show which servers are out of sync")
+    @requires_gban()
+    async def audit(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(thinking=True)
+
+        entries = await ban_entries()
+        wanted = {int(uid) for uid in entries}
+
+        lines = []
+        drift = 0
+        for guild in self.bot.guilds:
+            current = await self.existing_bans(guild)
+            if current is None:
+                lines.append(f"{ui.ERR} **{guild.name}** — can't read bans")
+                continue
+
+            missing = wanted - current
+            extra = current - wanted  # banned locally but not globally
+            drift += len(missing)
+
+            if not missing and not extra:
+                lines.append(f"{ui.OK} **{guild.name}** — in sync")
+            else:
+                bits = []
+                if missing:
+                    bits.append(f"**{len(missing)}** missing")
+                if extra:
+                    bits.append(f"{len(extra)} local-only")
+                lines.append(f"{ui.WARN} **{guild.name}** — " + ", ".join(bits))
+
+        body = "\n".join(
+            [
+                ui.field("Global list", len(entries)),
+                ui.field("Servers", len(self.bot.guilds)),
+                ui.field("Total missing bans", drift),
+                "",
+                *lines,
+            ]
+        )
+        if drift:
+            body += "\n\n-# Run `/gban sync` to push the missing ones out."
+
+        await interaction.followup.send(
+            view=ui.panel(
+                "Sync Audit", body, color=ui.GREEN_HEX if not drift else ui.AMBER_HEX
+            )
+        )
+
+    @gban.command(name="import", description="Add a server's existing bans to the global list")
+    @app_commands.describe(
+        server="Server ID to import from (defaults to this one)",
+        reason="Reason to record against the imported bans",
+    )
+    @requires_gban()
+    async def import_bans(
+        self,
+        interaction: discord.Interaction,
+        server: str | None = None,
+        reason: str = "Imported from existing server bans",
+    ) -> None:
+        await interaction.response.defer(thinking=True)
+
+        guild = interaction.guild
+        if server:
+            sid = int(server) if server.isdigit() else None
+            guild = discord.utils.get(self.bot.guilds, id=sid)
+        if guild is None:
+            await interaction.followup.send(view=ui.err("I'm not in that server."))
+            return
+
+        current = await self.existing_bans(guild)
+        if current is None:
+            await interaction.followup.send(
+                view=ui.err(f"Can't read bans in **{guild.name}** — missing permission.")
+            )
+            return
+
+        entries = await ban_entries()
+        new = [uid for uid in current if str(uid) not in entries]
+
+        # Never import someone the rules say we must not global ban.
+        skipped = [uid for uid in new if protected_from_gban(self.bot, uid)]
+        importable = [uid for uid in new if uid not in skipped]
+
+        if not importable:
+            await interaction.followup.send(
+                view=ui.warn(
+                    f"Nothing new to import from **{guild.name}**. "
+                    f"{len(current)} ban(s) there, all already global."
+                )
+            )
+            return
+
+        now = int(time.time())
+        async with store.edit() as data:
+            bans = data.setdefault("bans", {})
+            for uid in importable:
+                bans[str(uid)] = {
+                    "user": uid,
+                    "username": f"Imported from {guild.name}",
+                    "reason": reason,
+                    "by": interaction.user.id,
+                    "by_name": str(interaction.user),
+                    "at": now,
+                    "imported_from": guild.id,
+                }
+
+        body = [
+            ui.field("Server", guild.name),
+            ui.field("Bans there", len(current)),
+            ui.field("Imported", len(importable)),
+        ]
+        if skipped:
+            body.append(ui.field("Skipped (protected)", len(skipped)))
+        body.append("")
+        body.append("-# Run `/gban sync` to push these to the other servers.")
+
+        await interaction.followup.send(
+            view=ui.panel("Bans Imported", "\n".join(body), color=ui.GREEN_HEX)
         )
 
     @gban.command(name="servers", description="Which servers this bot protects")
