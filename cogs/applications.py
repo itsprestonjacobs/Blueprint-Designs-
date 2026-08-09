@@ -66,12 +66,18 @@ class Session:
 IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
 
 
-def review_view(aid: int, entry: dict, decided: bool = False) -> ui.BaseLayout:
+def review_view(
+    aid: int,
+    entry: dict,
+    decided: bool = False,
+    image_urls: list[str] | None = None,
+) -> ui.BaseLayout:
     """The application as reviewers see it, portfolio images included.
 
-    Images are shown inline via `attachment://`, so they live on this message
-    rather than in a follow-up someone has to scroll for. That means every edit
-    of this message has to carry the existing attachments forward.
+    `attachment://name` only resolves for files uploaded in the *same* request,
+    so it works when first posting and fails with "referenced attachment was
+    not found" on any later edit. Editors must therefore pass `image_urls`, the
+    real CDN URLs of the attachments already on the message.
     """
     status = entry.get("status", "pending")
     colour = {
@@ -103,11 +109,12 @@ def review_view(aid: int, entry: dict, decided: bool = False) -> ui.BaseLayout:
         ui.text(f"## Application #{aid}\n" + "\n".join(body))
     ]
 
-    if images:
+    sources = image_urls if image_urls is not None else [f"attachment://{n}" for n in images]
+    if sources:
         children.append(ui.separator())
-        children.append(ui.text(f"**Past work** — {len(images)} file(s)"))
+        children.append(ui.text(f"**Past work** — {len(sources)} file(s)"))
         # A media gallery caps at 10 items, same as the attachment limit.
-        gallery = ui.gallery(*[f"attachment://{n}" for n in images[:10]])
+        gallery = ui.gallery(*sources[:10])
         if gallery:
             children.append(gallery)
 
@@ -154,13 +161,35 @@ class ReasonModal(dui.Modal):
             entry["decided_at"] = int(time.time())
             snapshot = dict(entry)
 
+        # Re-render from the attachments already on the message. Do this first
+        # so the reviewer sees the result, but never let a render problem stop
+        # the role grant and the applicant's DM below.
         keep = list(self.message.attachments) if self.message else []
-        await interaction.response.edit_message(
-            view=review_view(self.aid, snapshot, decided=True),
-            content=None,
-            embeds=[],
-            attachments=keep,
-        )
+        urls = [
+            a.url
+            for a in keep
+            if (a.content_type or "").startswith("image/")
+            or a.filename.lower().endswith(IMAGE_EXTS)
+        ]
+        try:
+            await interaction.response.edit_message(
+                view=review_view(self.aid, snapshot, decided=True, image_urls=urls),
+                content=None,
+                embeds=[],
+                attachments=keep,
+            )
+        except discord.HTTPException:
+            log.exception("could not re-render application %s", self.aid)
+            try:
+                await interaction.response.send_message(
+                    view=ui.warn(
+                        f"Recorded as **{snapshot['status']}**, but I couldn't update "
+                        "the message above."
+                    ),
+                    ephemeral=True,
+                )
+            except discord.HTTPException:
+                pass
 
         # Grant the role and tell the applicant.
         applicant = snapshot["user"]
@@ -182,6 +211,7 @@ class ReasonModal(dui.Modal):
                 user = await interaction.client.fetch_user(applicant)
             except discord.HTTPException:
                 user = None
+        dmed = False
         if user is not None:
             try:
                 await user.send(
@@ -196,11 +226,19 @@ class ReasonModal(dui.Modal):
                         color=ui.GREEN_HEX if accepted else ui.RED_HEX,
                     )
                 )
+                dmed = True
             except (discord.Forbidden, discord.HTTPException):
-                pass
+                log.warning("could not DM applicant %s", applicant)
 
-        if note:
-            await interaction.followup.send(view=ui.ok(f"Done.{note}"), ephemeral=True)
+        # Always tell the reviewer what actually happened, especially when the
+        # applicant never got the message.
+        summary = f"Recorded as **{snapshot['status']}**."
+        summary += "" if dmed else "\n-# Couldn't DM them — their DMs are closed."
+        summary += note
+        try:
+            await interaction.followup.send(view=ui.ok(summary), ephemeral=True)
+        except discord.HTTPException:
+            pass
 
 
 class Decide(dui.DynamicItem[dui.Button], template=r"app:(?P<action>accept|deny):(?P<aid>\d+)"):
@@ -224,6 +262,27 @@ class Decide(dui.DynamicItem[dui.Button], template=r"app:(?P<action>accept|deny)
         if not has_tier(interaction.user, "hr", "admin"):
             await interaction.response.send_message(view=ui.err("HR only."), ephemeral=True)
             return
+
+        # If it was already decided, the message is stale -- an earlier edit
+        # must have failed. Repair it rather than just refusing.
+        data = await store.read()
+        entry = (data.get("applications") or {}).get(str(self.aid))
+        if entry and entry.get("status") != "pending":
+            keep = list(interaction.message.attachments) if interaction.message else []
+            urls = [
+                a.url
+                for a in keep
+                if (a.content_type or "").startswith("image/")
+                or a.filename.lower().endswith(IMAGE_EXTS)
+            ]
+            await interaction.response.edit_message(
+                view=review_view(self.aid, entry, decided=True, image_urls=urls),
+                content=None,
+                embeds=[],
+                attachments=keep,
+            )
+            return
+
         await interaction.response.send_modal(
             ReasonModal(self.action, self.aid, interaction.message)
         )
