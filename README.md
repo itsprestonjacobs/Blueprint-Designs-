@@ -1,13 +1,9 @@
-# Blueprint Utilities
+# Sail's Customs
 
-Security bot for **Blueprint Designs**, built on discord.py 2.7.
+Discord bot for **Sail's Customs** — security, tickets, applications and staff
+management, built on discord.py 2.7 with Components V2 throughout.
 
-Global bans that apply across every Blueprint server, anti-nuke, anti-raid, and
-a localhost web panel for configuration.
-
-> The earlier full-featured version — tickets, orders, panels, applications,
-> staff tools, giveaways, moderation, reviews, payouts — is preserved at the
-> **`v1-full`** tag: `git checkout v1-full`
+Entry point is `main.py`.
 
 ---
 
@@ -16,18 +12,35 @@ a localhost web panel for configuration.
 ```bash
 pip install -r requirements.txt
 cp .env.example .env                # paste your bot token
-cp config.example.json config.json  # or configure via the panel below
-python bot.py
+cp config.example.json config.json  # then fill in IDs, or use the panel below
+python main.py
 ```
 
-Python 3.10+ (built on 3.12).
+Python 3.10+ (built and tested on 3.12).
 
 **Privileged intents** — in the [Developer Portal](https://discord.com/developers/applications)
-→ Bot, enable **Server Members** and **Message Content**.
+→ your app → Bot, enable **Server Members** and **Message Content**. The bot
+won't start without them.
 
-**Permissions the bot needs:** Ban Members, Kick Members, Manage Roles,
-Manage Server, View Audit Log. Its role must sit **above** anyone it may have to
-act against.
+**Permissions:** Ban Members, Kick Members, Moderate Members, Manage Roles,
+Manage Nicknames, Manage Channels, Manage Server, View Audit Log, Send Messages,
+Attach Files, Read Message History.
+
+The bot's role must sit **above** anyone it may have to act on. Discord never
+lets a bot act on the server owner, whatever permissions it holds.
+
+### Hosting
+
+Pterodactyl-style panels: set the startup command to
+
+```
+python -u main.py
+```
+
+`-u` disables output buffering, otherwise the console stays empty. Install
+dependencies from the panel console with `pip install -r requirements.txt`.
+
+Keep `data/` between restarts — it holds tickets, bans, applications and cases.
 
 ---
 
@@ -38,82 +51,132 @@ pip install -r panel/requirements.txt
 python panel/app.py          # http://127.0.0.1:5000
 ```
 
-Edits `config.json` through a web UI, with channel and role dropdowns pulled
-live from your server so you never type an ID by hand. Binds to `127.0.0.1`
-only — it can read your token and rewrite your config, so never expose it.
+Edits `config.json` through a web UI with channel and role dropdowns pulled
+live from Discord, so you never type an ID by hand. Binds to `127.0.0.1` only —
+it reads your token and rewrites your config, so never expose it.
 
-Changes take effect on restart, or `/reload <cog>`.
+Changes apply on restart, or `/reload <cog>`.
 
 ---
 
-## Global bans
+## Security
 
-One ban applies everywhere the bot is. Adding a ban fans it out to every current
-server, joining a new server replays the whole list into it, and anyone on the
-list is banned the moment they try to join anywhere.
+### Global bans
+
+One ban applies to every server the bot is in. Adding fans out to all of them,
+joining a new server replays the list into it, and anyone listed is banned the
+moment they try to join anywhere.
 
 | Command | Does |
 |---|---|
-| `/gban add <user> <reason>` | Ban across every server |
-| `/gban remove <user_id>` | Lift everywhere |
-| `/gban check <user_id>` | Look someone up |
-| `/gban list` | Everyone on the list |
-| `/gban sync` | Re-apply the list to all servers |
-| `/gban servers` | Which servers are protected, and whether the bot can ban there |
+| `/gban add` `/gban remove` | Ban or lift everywhere |
+| `/gban check` `/gban list` | Look someone up, or the whole list |
+| `/gban sync` | Push only the bans a server is missing |
+| `/gban audit` | Per-server drift report |
+| `/gban import` | Pull a server's existing bans into the list |
+| `/gban servers` | Which servers are protected, and where the bot can't ban |
 
-**Authority comes from one role in the home server** (`security.gban_role`),
-checked against that server no matter where the command is run. A cross-server
-power can't be gated per-server, or anyone holding a similarly-named role in a
-satellite server could use it.
+**Authority is one role in the home server** (`security.gban_role`), checked
+against that server wherever the command runs. A cross-server power can't be
+gated per-server, or anyone holding a similarly-named role elsewhere could use
+it.
 
-The bot refuses to global ban itself, the home server's owner, anyone holding
-the global-ban role, and anyone whitelisted.
+Refuses to ban itself, the owner, gban-role holders, and anyone whitelisted.
 
----
+### Anti-nuke
 
-## Anti-nuke
-
-Reacts to audit-log entries as they arrive and counts destructive actions per
+Reacts to audit-log entries as they arrive, counting destructive actions per
 person. A compromised admin can delete forty channels in ten seconds, so
-reacting per event matters more than any periodic scan.
+per-event beats any periodic scan.
 
-Watched: bans, kicks, channel create/delete, role create/delete, webhook
-creation, privileged role grants, prunes, server-setting changes.
+Watches bans, kicks, channel and role create/delete, webhooks, privileged role
+grants, prunes and server-setting changes — each with its own `count in window`
+threshold. Response is `quarantine` (default), `ban`, `kick` or `alert`.
 
-Each has its own `count in window` threshold. Cross one and the response fires:
+`/antinuke status` · `toggle` · `incidents`
 
-- `quarantine` (default) — strip every removable role
-- `ban` / `kick`
-- `alert` — log only
+### Anti-raid
 
-Whitelisted users and roles are skipped. The server owner can't be removed, so
-they trigger a loud alert instead.
+Join-rate lockdown (raises verification, quarantines arrivals, auto-lifts) and
+an account-age gate. Held rather than banned by default — raids sweep up
+bystanders and a role is far easier to undo.
 
-`/antinuke status` · `/antinuke toggle` · `/antinuke incidents`
+`/antiraid status` · `lock` · `release` · `toggle`
+
+### Moderation
+
+`/warn` `/timeout` `/untimeout` `/kick` `/ban` `/unban` `/purge` `/cases`
+
+Numbered case log, DMs on action, and one shared guard: no acting on yourself,
+the bot, the owner, or anyone at or above your role height.
+
+`/ban` is this server only — use `/gban add` for everywhere.
+
+### Lookup
+
+`/lookup` pulls everything the bot knows about someone into one reply: account
+age, join date, roles, global ban, infractions, cases, leave and tickets.
+Flags young accounts and colours the result by risk.
 
 ---
 
-## Anti-raid
+## Tickets
 
-**Join rate** — too many joins inside a window puts the server into lockdown:
-verification level goes to High and new arrivals get the quarantine role.
-Auto-lifts after a set time, or `/antiraid release`.
+Two panels, each a dropdown of its own categories:
 
-**Account age** — accounts younger than a threshold can be held, kicked or
-banned on sight.
+```
+/ticket panel                 orders   — 12 services
+/ticket panel which:support   support  — help and prize claims
+```
 
-Held members are quarantined rather than banned by default. Raids sweep up
-bystanders, and a role is much easier to undo than a ban.
+Picking one opens a channel in the matching category, pings the configured
+roles, and posts a panel with Claim and Close. Closing saves a transcript to
+the log channel first.
 
-`/antiraid status` · `/antiraid lock` · `/antiraid release` · `/antiraid toggle`
+`/ticket add` `/ticket remove` `/ticket close` `/ticket unblock`
+
+**Close guard** — closing several tickets inside a short window blocks the
+closer and alerts the raid channel with Restore / Continue Blocking. Reversible
+on purpose: a legitimate sweep of spam tickets looks identical to abuse from a
+counter's point of view. `/ticket testguard` fires it against yourself to test.
 
 ---
 
-## Other commands
+## Applications
 
-`/ping` · `/config` · `/reload <cog>` · `/presence set|pause|resume|next|list`
+`/apply panel` posts an Apply button. The rest happens in DMs: pick categories,
+write a response, attach past work, then it posts to the review channel with
+Accept and Deny. Deciding asks for a reason, recorded on the post and DM'd.
 
-The presence rotates through Playing / Watching / Listening / Competing, with
+Portfolio images are re-uploaded to the review channel rather than linked —
+Discord signs CDN URLs and they expire within a day.
+
+`/apply toggle` `/apply pending`
+
+---
+
+## Staff
+
+**Leave** — `/loa request` posts to the LOA channel with Approve and Deny.
+Approved leave prefixes the member's nickname with `LOA | `, keeping the rest,
+and restores it exactly when the leave ends or is ended early. An hourly sweep
+expires leave automatically. `/loa end` `/loa list`
+
+**Infractions** — `/infraction issue` with a severity ladder from Notice to
+Termination. Numbered, logged, DM'd, and kept as history so escalation is based
+on the record. `/infraction history` `view` `void`
+
+Voiding marks an entry void and keeps the trail. A disciplinary history that
+can be quietly erased isn't a record.
+
+---
+
+## Other
+
+`/help` `/ping` `/config` `/reload <cog>` ·
+`/presence set|pause|resume|next|list`
+
+The presence rotates through Playing / Watching / Listening / Competing with
 `{members}`, `{guild}` and `{channels}` as live placeholders. A **Streaming**
 status makes Discord add a "Watch" button to the bot's profile.
 
@@ -122,7 +185,7 @@ status makes Discord add a "Watch" button to the bot's profile.
 ## Layout
 
 ```
-bot.py              entry point, cog loading, command sync
+main.py             entry point, cog loading, command sync
 core/
   config.py         config loading, unset-ID report
   security.py       global-ban authority, whitelists, rate tracking
@@ -130,20 +193,30 @@ core/
   perms.py          role-tier checks
   ui.py             Components V2 builders + limit enforcement
   logs.py           posting to log channels
-cogs/
-  globalban.py      cross-server bans
-  antinuke.py       audit-log watch and response
-  antiraid.py       join-rate lockdown, account-age gate
-  general.py        /ping /config /reload
-  presence.py       rotating status
+cogs/               one module per feature, all hot-reloadable
 panel/app.py        localhost config UI
 scripts/preview.py  offline view validation
+data/               runtime state — keep this between deploys
 ```
 
-Every write goes through `core/store.py`: one `asyncio.Lock` per file and
-atomic `os.replace` commits, so concurrent bans can't lose each other.
+Every write goes through `core/store.py`: one `asyncio.Lock` per file, atomic
+`os.replace` commits, and a `.bak` kept before each overwrite that it recovers
+from if the live file is ever unreadable.
 
 Every message goes through `core/ui.py`, which enforces Discord's limits in one
 place: 40 components, 4000 characters, 25 select options.
 
-**Validate before deploying:** `python scripts/preview.py`
+### Components V2 notes
+
+- A V2 message can't carry `content` or `embeds` — all text lives in
+  `TextDisplay`, so role pings go in a separate plain message.
+- Editing a message into a V2 view needs `content=None, embeds=[], attachments=[]`.
+- `attachment://` only resolves for files uploaded in the *same* request. Edits
+  must reference the attachments' real CDN URLs instead.
+- Modals are still classic and cap at 5 inputs.
+
+**Validate before deploying:** `python scripts/preview.py` — builds every view
+offline and checks it against Discord's limits. No token needed.
+
+> The earlier order-management version — orders, pricing, panels, giveaways,
+> reviews, payouts — is preserved at the **`v1-full`** tag.
