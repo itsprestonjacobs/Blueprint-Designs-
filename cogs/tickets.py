@@ -1,8 +1,9 @@
-"""Tickets, opened from a plain dropdown.
+"""Tickets.
 
-No embeds and no Components V2 anywhere here: the panel is a line of text and a
-select menu, and the ticket itself opens with a normal message. Two panels are
-configured -- orders and support -- each listing its own categories.
+Everything here is Components V2: the panel is a container holding a category
+dropdown, and a ticket opens with a panel carrying its own claim and close
+controls. Two panels are configured -- orders and support -- each listing its
+own categories.
 
 The claim and close buttons are DynamicItems whose custom_id carries the ticket
 channel ID, so they keep working after a restart without registering one
@@ -95,19 +96,20 @@ class ClaimButton(dui.DynamicItem[dui.Button], template=r"tk:claim:(?P<cid>\d+)"
 
     async def callback(self, interaction: discord.Interaction) -> None:
         if not has_tier(interaction.user, *STAFF_TIERS):
-            await interaction.response.send_message("Staff only.", ephemeral=True)
+            await interaction.response.send_message(view=ui.err("Staff only."), ephemeral=True)
             return
 
         async with store.edit() as data:
             ticket = (data.get("tickets") or {}).get(str(self.cid))
             if ticket is None:
                 await interaction.response.send_message(
-                    "I have no record of this ticket.", ephemeral=True
+                    view=ui.err("I have no record of this ticket."), ephemeral=True
                 )
                 return
             if ticket.get("claimed_by"):
                 await interaction.response.send_message(
-                    f"Already claimed by <@{ticket['claimed_by']}>.", ephemeral=True
+                    view=ui.warn(f"Already claimed by <@{ticket['claimed_by']}>."),
+                    ephemeral=True,
                 )
                 return
             ticket["claimed_by"] = interaction.user.id
@@ -121,7 +123,7 @@ class ClaimButton(dui.DynamicItem[dui.Button], template=r"tk:claim:(?P<cid>\d+)"
             attachments=[],
         )
         await interaction.followup.send(
-            f"{interaction.user.mention} is handling this ticket."
+            view=ui.ok(f"{interaction.user.mention} is handling this ticket.")
         )
 
 
@@ -142,7 +144,7 @@ class CloseButton(dui.DynamicItem[dui.Button], template=r"tk:close:(?P<cid>\d+)"
         ticket = await get_ticket(self.cid)
         if ticket is None:
             await interaction.response.send_message(
-                "I have no record of this ticket.", ephemeral=True
+                view=ui.err("I have no record of this ticket."), ephemeral=True
             )
             return
 
@@ -150,20 +152,19 @@ class CloseButton(dui.DynamicItem[dui.Button], template=r"tk:close:(?P<cid>\d+)"
             interaction.user, *STAFF_TIERS
         ):
             await interaction.response.send_message(
-                "You can't close this ticket.", ephemeral=True
+                view=ui.err("Not your ticket to close."), ephemeral=True
             )
             return
 
         if await is_blocked(interaction.user.id):
             await interaction.response.send_message(
-                "You're blocked from closing tickets pending review.", ephemeral=True
+                view=ui.err("You're blocked from closing tickets pending review."),
+                ephemeral=True,
             )
             return
 
         await interaction.response.send_message(
-            "Close this ticket? A transcript is saved first.",
-            view=ConfirmClose(self.cid),
-            ephemeral=True,
+            view=ConfirmClose(self.cid), ephemeral=True
         )
 
 
@@ -220,7 +221,7 @@ class BlockDecision(
 
     async def callback(self, interaction: discord.Interaction) -> None:
         if not has_tier(interaction.user, "hr", "admin"):
-            await interaction.response.send_message("HR only.", ephemeral=True)
+            await interaction.response.send_message(view=ui.err("HR only."), ephemeral=True)
             return
 
         restore = self.action == "restore"
@@ -332,32 +333,45 @@ def opening_view(cid: int, ticket: dict, category: dict) -> ui.BaseLayout:
     return view.validate()
 
 
-class TicketControls(dui.View):
-    """Fallback controls for tickets opened before the panel existed."""
+class ConfirmClose(ui.BaseLayout):
+    """Ephemeral guard so a stray click can't delete a ticket."""
 
-    def __init__(self, cid: int, claimed: bool = False) -> None:
-        super().__init__(timeout=None)
-        self.add_item(ClaimButton(cid, claimed))
-        self.add_item(CloseButton(cid))
-
-
-class ConfirmClose(dui.View):
     def __init__(self, cid: int) -> None:
         super().__init__(timeout=120)
         self.cid = cid
 
-    @dui.button(label="Close ticket", style=discord.ButtonStyle.danger)
-    async def confirm(self, interaction: discord.Interaction, _: dui.Button) -> None:
+        go = dui.Button(label="Close ticket", style=discord.ButtonStyle.danger)
+        cancel = dui.Button(label="Cancel", style=discord.ButtonStyle.secondary)
+        go.callback = self._confirm
+        cancel.callback = self._cancel
+
+        self.add_item(
+            ui.container(
+                ui.text(
+                    "### Close this ticket?\n"
+                    "A transcript is saved to the log channel first, then the "
+                    "channel is deleted."
+                ),
+                ui.separator(),
+                ui.row(go, cancel),
+                color=ui.RED_HEX,
+            )
+        )
+        self.validate()
+
+    async def _confirm(self, interaction: discord.Interaction) -> None:
         await interaction.response.edit_message(
-            content="Saving transcript and closing…", view=None
+            view=ui.warn("Saving transcript and closing…"),
+            content=None, embeds=[], attachments=[],
         )
         channel = interaction.guild.get_channel(self.cid) if interaction.guild else None
         if isinstance(channel, discord.TextChannel):
             await close_ticket(interaction.client, channel, interaction.user)
 
-    @dui.button(label="Cancel", style=discord.ButtonStyle.secondary)
-    async def cancel(self, interaction: discord.Interaction, _: dui.Button) -> None:
-        await interaction.response.edit_message(content="Left it open.", view=None)
+    async def _cancel(self, interaction: discord.Interaction) -> None:
+        await interaction.response.edit_message(
+            view=ui.ok("Left it open."), content=None, embeds=[], attachments=[]
+        )
 
 
 async def close_ticket(
@@ -369,20 +383,29 @@ async def close_ticket(
     # Count this close before the channel disappears, so the alert can name it.
     await register_close(bot, channel.guild.id, closer, channel.name)
 
-    summary = (
-        f"**Ticket #{ticket.get('number', '?')} closed**\n"
-        f"Category: {ticket.get('label', 'unknown')}\n"
-        f"Opened by: <@{ticket.get('user')}>\n"
-        f"Closed by: {closer.mention}"
+    category = categories().get(ticket.get("category"), {})
+    claimed = ticket.get("claimed_by")
+    summary = ui.panel(
+        f"{category.get('emoji', '🎫')} Ticket #{ticket.get('number', '?')} closed",
+        "\n".join(
+            [
+                ui.field("Category", ticket.get("label", "unknown")),
+                ui.field("Opened by", f"<@{ticket.get('user')}>"),
+                ui.field("Handled by", f"<@{claimed}>" if claimed else "unclaimed"),
+                ui.field("Closed by", closer.mention),
+                ui.field("Channel", f"#{channel.name}"),
+                ui.field("Open for", f"<t:{ticket.get('created_at', 0)}:R>"),
+            ]
+        ),
+        footer=config.get("branding.footer", "Sail's Customs"),
     )
 
     log_channel = await get_channel(bot, "ticket_transcripts")
     if log_channel is not None:
         try:
+            await log_channel.send(view=summary)
             if transcript is not None:
-                await log_channel.send(summary, file=transcript)
-            else:
-                await log_channel.send(summary)
+                await log_channel.send(file=transcript)
         except discord.HTTPException:
             log.exception("could not post transcript for #%s", channel)
 
@@ -402,8 +425,8 @@ async def close_ticket(
 # -- the panel ------------------------------------------------------------
 
 
-class TicketPanel(dui.View):
-    """A bare dropdown. No embed, no container -- just the select menu."""
+class TicketPanel(ui.BaseLayout):
+    """The public panel. A V2 container holding the category dropdown."""
 
     def __init__(self, group: str) -> None:
         super().__init__(timeout=None)
@@ -413,15 +436,19 @@ class TicketPanel(dui.View):
         cats = categories()
         wanted = spec.get("categories") or list(cats)
 
-        options = [
-            discord.SelectOption(
-                label=cats[key].get("label", key)[:100],
-                value=key,
-                description=(cats[key].get("description") or None),
-            )
-            for key in wanted
-            if key in cats
-        ][:25]
+        options = ui.check_options(
+            [
+                discord.SelectOption(
+                    label=cats[key].get("label", key)[:100],
+                    value=key,
+                    description=(cats[key].get("description") or None),
+                    emoji=cats[key].get("emoji") or None,
+                )
+                for key in wanted
+                if key in cats
+            ],
+            f"tickets.panels.{group}",
+        )
 
         select = dui.Select(
             custom_id=f"tk:open:{group}",
@@ -429,14 +456,34 @@ class TicketPanel(dui.View):
             options=options or [discord.SelectOption(label="Nothing configured", value="_none")],
         )
         select.callback = self._on_select
-        self.add_item(select)
+
+        children: list[dui.Item] = []
+
+        banner_url, banner_file = ui.resolve_media(spec.get("banner"))
+        if banner_url:
+            media = ui.gallery(banner_url)
+            if media:
+                children.append(media)
+                self.track(banner_file)
+
+        title = spec.get("title", group.title())
+        children.append(ui.text(f"## {title}\n{spec.get('body', '')}".rstrip()))
+        children.append(ui.separator(large=True))
+        children.append(ui.row(select))
+
+        if spec.get("footer"):
+            children.append(ui.separator())
+            children.append(ui.text(f"-# {spec['footer']}"))
+
+        self.add_item(ui.container(*children))
+        self.validate()
 
     async def _on_select(self, interaction: discord.Interaction) -> None:
         key = interaction.data["values"][0]  # type: ignore[index]
         category = categories().get(key)
         if category is None:
             await interaction.response.send_message(
-                "That option no longer exists.", ephemeral=True
+                view=ui.err("That option no longer exists."), ephemeral=True
             )
             return
         await create_ticket(interaction, key, category)
@@ -507,7 +554,9 @@ async def create_ticket(
         )
         return
     except discord.HTTPException as exc:
-        await interaction.followup.send(f"Couldn't create the channel: {exc}", ephemeral=True)
+        await interaction.followup.send(
+            view=ui.err(f"Couldn't create the channel: {exc}"), ephemeral=True
+        )
         return
 
     ticket = {
@@ -535,7 +584,9 @@ async def create_ticket(
     except discord.HTTPException:
         log.exception("could not post opening message in #%s", channel)
 
-    await interaction.followup.send(f"Opened {channel.mention}", ephemeral=True)
+    await interaction.followup.send(
+        view=ui.ok(f"Opened {channel.mention}"), ephemeral=True
+    )
 
 
 # -- cog ------------------------------------------------------------------
@@ -560,14 +611,15 @@ class Tickets(commands.Cog):
         spec = panels().get(which)
         if spec is None:
             await interaction.response.send_message(
-                f"No panel `{which}`. Options: {', '.join(panels())}", ephemeral=True
+                view=ui.err(f"No panel `{which}`. Options: {', '.join(panels())}"),
+                ephemeral=True,
             )
             return
 
-        await interaction.channel.send(
-            spec.get("text", ""), view=TicketPanel(which)
+        await ui.send_panel(interaction.channel, TicketPanel(which))
+        await interaction.response.send_message(
+            view=ui.ok(f"Posted the **{which}** panel."), ephemeral=True
         )
-        await interaction.response.send_message(f"Posted the {which} dropdown.", ephemeral=True)
 
     @panel.autocomplete("which")
     async def panel_ac(self, interaction: discord.Interaction, current: str):
@@ -625,57 +677,62 @@ class Tickets(commands.Cog):
     async def unblock(self, interaction: discord.Interaction, member: discord.Member) -> None:
         if not await is_blocked(member.id):
             await interaction.response.send_message(
-                f"{member.mention} isn't blocked.", ephemeral=True
+                view=ui.warn(f"{member.mention} isn't blocked."), ephemeral=True
             )
             return
         await set_blocked(member.id, False)
         close_tracker.clear_actor(interaction.guild_id or 0, member.id)
         await interaction.response.send_message(
-            f"{member.mention} can close tickets again.", ephemeral=True
+            view=ui.ok(f"{member.mention} can close tickets again."), ephemeral=True
         )
 
     @ticket.command(name="add", description="Add a member to this ticket")
     @require(*STAFF_TIERS)
     async def add(self, interaction: discord.Interaction, member: discord.Member) -> None:
         if await get_ticket(interaction.channel.id) is None:
-            await interaction.response.send_message("Not a ticket channel.", ephemeral=True)
+            await interaction.response.send_message(
+                view=ui.err("Not a ticket channel."), ephemeral=True
+            )
             return
         await interaction.channel.set_permissions(
             member, view_channel=True, send_messages=True, read_message_history=True
         )
-        await interaction.response.send_message(f"{member.mention} added.")
+        await interaction.response.send_message(view=ui.ok(f"{member.mention} added."))
 
     @ticket.command(name="remove", description="Remove a member from this ticket")
     @require(*STAFF_TIERS)
     async def remove(self, interaction: discord.Interaction, member: discord.Member) -> None:
         if await get_ticket(interaction.channel.id) is None:
-            await interaction.response.send_message("Not a ticket channel.", ephemeral=True)
+            await interaction.response.send_message(
+                view=ui.err("Not a ticket channel."), ephemeral=True
+            )
             return
         await interaction.channel.set_permissions(member, overwrite=None)
-        await interaction.response.send_message(f"{member.mention} removed.")
+        await interaction.response.send_message(view=ui.ok(f"{member.mention} removed."))
 
     @ticket.command(name="close", description="Close this ticket")
     async def close(self, interaction: discord.Interaction) -> None:
         ticket = await get_ticket(interaction.channel.id)
         if ticket is None:
-            await interaction.response.send_message("Not a ticket channel.", ephemeral=True)
+            await interaction.response.send_message(
+                view=ui.err("Not a ticket channel."), ephemeral=True
+            )
             return
         if ticket.get("user") != interaction.user.id and not has_tier(
             interaction.user, *STAFF_TIERS
         ):
             await interaction.response.send_message(
-                "You can't close this ticket.", ephemeral=True
+                view=ui.err("Not your ticket to close."), ephemeral=True
             )
             return
         if await is_blocked(interaction.user.id):
             await interaction.response.send_message(
-                "You're blocked from closing tickets pending review.", ephemeral=True
+                view=ui.err("You're blocked from closing tickets pending review."),
+                ephemeral=True,
             )
             return
         await interaction.response.send_message(
-            "Close this ticket? A transcript is saved first.",
-            view=ConfirmClose(interaction.channel.id),
-            ephemeral=True,
+            view=ConfirmClose(interaction.channel.id), ephemeral=True
         )
 
     @commands.Cog.listener()
